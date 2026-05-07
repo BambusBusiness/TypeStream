@@ -21,6 +21,9 @@ dist/
 *.egg-info/
 *.spec
 
+# generated from assets/icon.svg by tools/make_icon.py
+assets/icon.ico
+
 .vscode/
 .idea/
 *.swp
