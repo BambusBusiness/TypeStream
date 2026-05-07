@@ -1,0 +1,14 @@
+PyQt6>=6.6
+
+keyboard>=0.13.5
+mouse>=0.7.1
+
+sounddevice>=0.4.6
+soundfile>=0.12.1
+numpy>=1.26
+pygame>=2.5
+
+openai>=1.40
+
+pyautogui>=0.9.54
+pyperclip>=1.8.2
