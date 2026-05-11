@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
 
 from .config import CONFIG_DIR, HISTORY_FILE
@@ -11,10 +11,44 @@ from .config import CONFIG_DIR, HISTORY_FILE
 class HistoryEntry:
     text: str
     timestamp: str
+    cloud_seconds: float | None = None
+    local_seconds: float | None = None
+    engine_used: str | None = None
+    timings: dict[str, float] = field(default_factory=dict)
 
     @classmethod
-    def new(cls, text: str) -> "HistoryEntry":
-        return cls(text=text, timestamp=datetime.now().isoformat(timespec="seconds"))
+    def new(
+        cls,
+        text: str,
+        *,
+        cloud_seconds: float | None = None,
+        local_seconds: float | None = None,
+        engine_used: str | None = None,
+        timings: dict[str, float] | None = None,
+    ) -> "HistoryEntry":
+        return cls(
+            text=text,
+            timestamp=datetime.now().isoformat(timespec="seconds"),
+            cloud_seconds=cloud_seconds,
+            local_seconds=local_seconds,
+            engine_used=engine_used,
+            timings=dict(timings) if timings else {},
+        )
+
+    def all_timings(self) -> dict[str, float]:
+        """Merge legacy fields with new timings dict for unified access."""
+        merged: dict[str, float] = {}
+        if self.cloud_seconds is not None:
+            merged["openai"] = self.cloud_seconds
+        if self.local_seconds is not None:
+            merged.setdefault("whisper", self.local_seconds)
+        merged.update(self.timings or {})
+        return merged
+
+    def winner(self) -> str | None:
+        if self.cloud_seconds is None or self.local_seconds is None:
+            return None
+        return "openai" if self.cloud_seconds <= self.local_seconds else "local"
 
 
 class History:
@@ -23,8 +57,22 @@ class History:
         self._entries: list[HistoryEntry] = []
         self._load()
 
-    def add(self, text: str) -> HistoryEntry:
-        entry = HistoryEntry.new(text)
+    def add(
+        self,
+        text: str,
+        *,
+        cloud_seconds: float | None = None,
+        local_seconds: float | None = None,
+        engine_used: str | None = None,
+        timings: dict[str, float] | None = None,
+    ) -> HistoryEntry:
+        entry = HistoryEntry.new(
+            text,
+            cloud_seconds=cloud_seconds,
+            local_seconds=local_seconds,
+            engine_used=engine_used,
+            timings=timings,
+        )
         self._entries.insert(0, entry)
         self._enforce_limit()
         self._save()
@@ -61,7 +109,11 @@ class History:
             return
         try:
             data = json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
-            self._entries = [HistoryEntry(**e) for e in data][: self._limit]
+            valid = {f.name for f in fields(HistoryEntry)}
+            self._entries = [
+                HistoryEntry(**{k: v for k, v in e.items() if k in valid})
+                for e in data
+            ][: self._limit]
         except (json.JSONDecodeError, OSError, TypeError):
             self._entries = []
 

@@ -63,7 +63,8 @@ logging.basicConfig(
     ],
 )
 log = logging.getLogger("typestream")
-log.info("=== TypeStream startup ===")
+from core.version import __version__
+log.info("=== TypeStream startup (v%s) ===", __version__)
 log.info("Python: %s", sys.version)
 log.info("Log file: %s", LOG_FILE)
 

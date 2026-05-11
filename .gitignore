@@ -15,11 +15,11 @@ history.json
 *.wav
 *.mp3
 *.m4a
+!assets/*.mp3
 
 build/
 dist/
 *.egg-info/
-*.spec
 
 # generated from assets/icon.svg by tools/make_icon.py
 assets/icon.ico

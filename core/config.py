@@ -14,12 +14,16 @@ HISTORY_FILE = CONFIG_DIR / "history.json"
 
 RecordMode = Literal["ptt", "toggle"]
 Theme = Literal["dark", "light", "system"]
+Engine = Literal["openai", "local"]
+LocalModelSize = Literal["tiny", "base", "small"]
 
 
 @dataclass
 class Config:
+    engine: Engine = "openai"
     api_key: str = ""
     model: str = "gpt-4o-mini-transcribe"
+    local_model_size: LocalModelSize = "base"
     record_hotkey: str = "f9"
     paste_hotkey: str = "ctrl+alt+v"
     record_mode: RecordMode = "ptt"
@@ -27,10 +31,17 @@ class Config:
     language: str = "de"
     min_record_duration: float = 0.4
     play_sounds: bool = True
+    beep_volume: float = 0.6
     show_overlay: bool = True
+    autostart: bool = True
     style: str = "original"
+    style_mode: str = "hint"
+    refine_model: str = "gpt-4o-mini"
     custom_style_prompt: str = ""
     theme: Theme = "system"
+    benchmark_mode: bool = False
+    benchmark_engine_a: str = "openai"
+    benchmark_engine_b: str = "whisper"
 
     @classmethod
     def load(cls) -> "Config":

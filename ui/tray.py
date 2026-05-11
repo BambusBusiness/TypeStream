@@ -62,6 +62,7 @@ class TrayIcon(QSystemTrayIcon):
     copy_last = pyqtSignal()
     quit_app = pyqtSignal()
     style_changed = pyqtSignal(str)
+    update_clicked = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -83,6 +84,12 @@ class TrayIcon(QSystemTrayIcon):
         self._style_group.setExclusive(True)
         self._style_actions: dict[str, QAction] = {}
 
+        self._update_action = QAction("Update verfügbar — laden", self)
+        self._update_action.setVisible(False)
+        self._update_action.triggered.connect(self.update_clicked.emit)
+        self._update_separator = self._menu.addSeparator()
+        self._update_separator.setVisible(False)
+        self._menu.addAction(self._update_action)
         self._menu.addAction(act_history)
         self._menu.addAction(act_settings)
         self._menu.addSeparator()
@@ -99,6 +106,15 @@ class TrayIcon(QSystemTrayIcon):
         act_quit.triggered.connect(self.quit_app.emit)
 
         self.activated.connect(self._on_activated)
+
+    def set_update_available(self, version: str | None) -> None:
+        if version:
+            self._update_action.setText(f"Update auf v{version} laden")
+            self._update_action.setVisible(True)
+            self._update_separator.setVisible(True)
+        else:
+            self._update_action.setVisible(False)
+            self._update_separator.setVisible(False)
 
     def _on_activated(self, reason):
         if reason in (

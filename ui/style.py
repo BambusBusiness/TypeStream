@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import QGraphicsDropShadowEffect, QLabel, QWidget
+
+ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
+CHECK_ICON_URL = ASSETS_DIR.joinpath("check.svg").as_posix()
 
 
 INTER_STACK = (
@@ -199,6 +203,39 @@ QLabel[role="section"] {{
     padding: 22px 0 8px 0;
 }}
 
+QLabel[role="history-text"] {{
+    color: {p.fg};
+    font-size: 14px;
+    padding: 0;
+    margin: 0;
+}}
+
+QLabel[role="timestamp"] {{
+    color: {p.fg_subtle};
+    font-family: {MONO_STACK};
+    font-size: 11px;
+    padding: 0 12px 0 0;
+}}
+
+QLabel[role="benchmark"] {{
+    color: {p.fg_muted};
+    font-family: {MONO_STACK};
+    font-size: 11px;
+    padding: 0;
+}}
+
+QLabel[role="stats-value"] {{
+    color: {p.fg};
+    font-family: {SERIF_STACK};
+    font-size: 28px;
+}}
+
+QFrame#statsCard {{
+    background: {p.surface_elevated};
+    border: 1px solid {p.border};
+    border-radius: 14px;
+}}
+
 QPushButton {{
     background: {p.surface};
     border: 1px solid {p.border};
@@ -361,8 +398,8 @@ QListWidget::item {{
     background: {p.surface_elevated};
     border: 1px solid transparent;
     border-radius: 10px;
-    padding: 16px 18px;
-    margin: 5px 2px;
+    padding: 10px 18px 10px 18px;
+    margin: 2px 2px;
     color: {p.fg};
 }}
 
@@ -375,6 +412,40 @@ QListWidget::item:selected {{
 QListWidget::item:hover {{
     background: {p.surface_hover};
     border-color: {p.border_hover};
+}}
+
+QListWidget#sidebarNav {{
+    background: transparent;
+    border: none;
+    padding: 4px 0;
+}}
+
+QListWidget#sidebarNav::item {{
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin: 2px 0;
+    color: {p.fg_muted};
+    font-weight: 500;
+}}
+
+QListWidget#sidebarNav::item:hover {{
+    background: {p.surface_hover};
+    color: {p.fg};
+}}
+
+QListWidget#sidebarNav::item:selected {{
+    background: {p.primary};
+    border-color: {p.primary};
+    color: {p.primary_fg};
+    font-weight: 600;
+}}
+
+QListWidget#sidebarNav::item:selected:hover {{
+    background: {p.primary_hover};
+    border-color: {p.primary_hover};
+    color: {p.primary_fg};
 }}
 
 QCheckBox {{
@@ -398,7 +469,12 @@ QCheckBox::indicator:hover {{
 
 QCheckBox::indicator:checked {{
     background: {gradient};
-    border: none;
+    border: 2px solid transparent;
+    image: url({CHECK_ICON_URL});
+}}
+
+QCheckBox::indicator:checked:hover {{
+    border: 2px solid transparent;
 }}
 
 QFormLayout > QLabel, QFormLayout QLabel {{
@@ -462,6 +538,40 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
 
 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
     background: transparent;
+}}
+
+QSlider:horizontal {{
+    min-height: 28px;
+}}
+
+QSlider::groove:horizontal {{
+    border: none;
+    height: 6px;
+    background: {p.border};
+    border-radius: 3px;
+}}
+
+QSlider::sub-page:horizontal {{
+    background: {gradient};
+    border-radius: 3px;
+}}
+
+QSlider::add-page:horizontal {{
+    background: {p.border};
+    border-radius: 3px;
+}}
+
+QSlider::handle:horizontal {{
+    background: {p.fg};
+    border: 2px solid {p.primary};
+    width: 14px;
+    height: 14px;
+    margin: -6px 0;
+    border-radius: 9px;
+}}
+
+QSlider::handle:horizontal:hover {{
+    border-color: {p.primary_hover};
 }}
 
 QScrollBar:horizontal {{
