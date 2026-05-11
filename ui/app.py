@@ -66,7 +66,8 @@ class AppController(QObject):
             language=self._config.language,
             prompt=self._whisper_prompt(),
         )
-        sounds.set_volume(self._config.beep_volume)
+        sounds.set_beep_volume(self._config.beep_volume)
+        sounds.set_warning_volume(self._config.warning_volume)
         autostart.set_enabled(self._config.autostart)
         self._inserter = TextInserter()
         self._hotkeys = HotkeyManager()
@@ -213,7 +214,9 @@ class AppController(QObject):
         if new_cfg.theme != prev.theme:
             self._apply_theme()
         if new_cfg.beep_volume != prev.beep_volume:
-            sounds.set_volume(new_cfg.beep_volume)
+            sounds.set_beep_volume(new_cfg.beep_volume)
+        if new_cfg.warning_volume != prev.warning_volume:
+            sounds.set_warning_volume(new_cfg.warning_volume)
         if new_cfg.autostart != prev.autostart:
             autostart.set_enabled(new_cfg.autostart)
 
@@ -594,14 +597,6 @@ class AppController(QObject):
         self._deliver_text(text)
 
     def _deliver_text(self, text: str) -> None:
-        if not self._inserter.has_editable_focus():
-            self._inserter.copy_to_clipboard(text)
-            self._notify(
-                "Kein Textfeld fokussiert — Text in Zwischenablage. Strg+V einfügen.",
-                "warn",
-                important=True,
-            )
-            return
         if not self._inserter.insert_at_cursor(text):
             self._notify(
                 "Auto-Einfügen fehlgeschlagen — Text in Zwischenablage. Strg+V einfügen.",

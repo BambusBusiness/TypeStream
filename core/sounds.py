@@ -19,7 +19,8 @@ _initialized = False
 _start_sound: "pygame.mixer.Sound | None" = None
 _stop_sound: "pygame.mixer.Sound | None" = None
 _warning_sound: "pygame.mixer.Sound | None" = None
-_volume: float = 1.0
+_beep_volume: float = 1.0
+_warning_volume: float = 1.0
 
 
 def init() -> None:
@@ -39,37 +40,39 @@ def init() -> None:
     ):
         try:
             sound = pygame.mixer.Sound(str(path))
-            sound.set_volume(_volume)
             globals()[attr] = sound
             log.info("Pre-loaded %s from %s", attr, path)
         except (pygame.error, FileNotFoundError, OSError):
             log.exception("Failed to preload %s", path)
 
 
-def set_volume(volume: float) -> None:
-    global _volume
-    _volume = max(0.0, min(1.0, volume))
-    for sound in (_start_sound, _stop_sound, _warning_sound):
-        if sound is not None:
-            sound.set_volume(_volume)
+def set_beep_volume(volume: float) -> None:
+    global _beep_volume
+    _beep_volume = max(0.0, min(1.0, volume))
 
 
-def _play(sound: "pygame.mixer.Sound | None") -> None:
-    if sound is None or _volume <= 0.0:
+def set_warning_volume(volume: float) -> None:
+    global _warning_volume
+    _warning_volume = max(0.0, min(1.0, volume))
+
+
+def _play(sound: "pygame.mixer.Sound | None", volume: float) -> None:
+    if sound is None or volume <= 0.0:
         return
     try:
+        sound.set_volume(volume)
         sound.play()
     except pygame.error:
         log.exception("Sound playback failed")
 
 
 def play_start() -> None:
-    _play(_start_sound)
+    _play(_start_sound, _beep_volume)
 
 
 def play_stop() -> None:
-    _play(_stop_sound)
+    _play(_stop_sound, _beep_volume)
 
 
 def play_warning() -> None:
-    _play(_warning_sound)
+    _play(_warning_sound, _warning_volume)

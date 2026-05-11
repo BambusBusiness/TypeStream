@@ -59,21 +59,20 @@ class HistoryRow(QWidget):
     def __init__(self, entry: HistoryEntry, parent=None):
         super().__init__(parent)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(6)
+        # Padding lives on the inner widget, not on QListWidget::item, so the
+        # parent's setSizeHint() reflects the *real* required height — otherwise
+        # item-padding silently eats height and the bottom of descenders ('g',
+        # 'p', 'y') gets clipped on single-line entries.
+        layout.setContentsMargins(18, 12, 18, 12)
+        layout.setSpacing(4)
 
         text = entry.text if len(entry.text) <= 220 else entry.text[:220] + "…"
         self._text_label = QLabel(text)
         self._text_label.setWordWrap(True)
         self._text_label.setProperty("role", "history-text")
-        self._text_label.setAlignment(
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
-        )
         self._text_label.setSizePolicy(
-            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
         )
-        self._text_label.setIndent(0)
-        self._text_label.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self._text_label)
 
         meta = QHBoxLayout()
@@ -91,7 +90,6 @@ class HistoryRow(QWidget):
 
         meta.addStretch()
         layout.addLayout(meta)
-        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
 
 class HistoryListWidget(QListWidget):
@@ -109,10 +107,11 @@ class HistoryListWidget(QListWidget):
             if w is None:
                 continue
             w.setFixedWidth(viewport_width)
-            layout = w.layout()
-            if layout is not None:
-                layout.invalidate()
-                layout.activate()
+            # Force the wrapped layout to recompute with the new fixed width
+            # before we read sizeHint — otherwise QLabel.wordWrap returns a
+            # stale (often-too-small) height and the bottom of the descenders
+            # gets clipped on single-line entries.
+            w.layout().activate()
             w.adjustSize()
             item.setSizeHint(QSize(viewport_width, w.sizeHint().height()))
 

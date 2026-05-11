@@ -226,6 +226,19 @@ class SettingsView(QWidget):
             lambda v: self._beep_volume_label.setText(f"{v} %")
         )
 
+        self._warning_volume_slider = QSlider(Qt.Orientation.Horizontal)
+        self._warning_volume_slider.setRange(0, 100)
+        self._warning_volume_slider.setSingleStep(5)
+        self._warning_volume_slider.setPageStep(10)
+        self._warning_volume_slider.setMinimumHeight(28)
+        self._warning_volume_slider.setValue(int(round(config.warning_volume * 100)))
+        self._warning_volume_label = QLabel(f"{int(round(config.warning_volume * 100))} %")
+        self._warning_volume_label.setProperty("role", "muted")
+        self._warning_volume_label.setMinimumWidth(48)
+        self._warning_volume_slider.valueChanged.connect(
+            lambda v: self._warning_volume_label.setText(f"{v} %")
+        )
+
         self._show_overlay_check = QCheckBox("Visuelles Overlay während Aufnahme")
         self._show_overlay_check.setChecked(config.show_overlay)
 
@@ -439,6 +452,7 @@ class SettingsView(QWidget):
             self._history_limit_spin.setValue(config.history_limit)
             self._play_sounds_check.setChecked(config.play_sounds)
             self._beep_volume_slider.setValue(int(round(config.beep_volume * 100)))
+            self._warning_volume_slider.setValue(int(round(config.warning_volume * 100)))
             self._show_overlay_check.setChecked(config.show_overlay)
             self._autostart_check.setChecked(config.autostart)
             _select(self._style_mode_combo, config.style_mode)
@@ -468,6 +482,7 @@ class SettingsView(QWidget):
             min_record_duration=float(self._min_duration_spin.value()),
             play_sounds=self._play_sounds_check.isChecked(),
             beep_volume=self._beep_volume_slider.value() / 100.0,
+            warning_volume=self._warning_volume_slider.value() / 100.0,
             show_overlay=self._show_overlay_check.isChecked(),
             autostart=self._autostart_check.isChecked(),
             style=self._style_key,
@@ -574,7 +589,15 @@ class SettingsView(QWidget):
         volume_row.addWidget(self._beep_volume_label)
         volume_container = QWidget()
         volume_container.setLayout(volume_row)
-        form.addRow("Ton-Lautstärke", volume_container)
+        form.addRow("Aufnahme-Ton", volume_container)
+
+        warning_row = QHBoxLayout()
+        warning_row.setSpacing(12)
+        warning_row.addWidget(self._warning_volume_slider, 1)
+        warning_row.addWidget(self._warning_volume_label)
+        warning_container = QWidget()
+        warning_container.setLayout(warning_row)
+        form.addRow("Warnton", warning_container)
 
         form.addRow("", self._show_overlay_check)
         form.addRow("", self._autostart_check)
@@ -676,6 +699,7 @@ class SettingsView(QWidget):
         self._history_limit_spin.valueChanged.connect(self._emit_changed)
         self._play_sounds_check.toggled.connect(self._emit_changed)
         self._beep_volume_slider.valueChanged.connect(self._emit_changed)
+        self._warning_volume_slider.valueChanged.connect(self._emit_changed)
         self._show_overlay_check.toggled.connect(self._emit_changed)
         self._autostart_check.toggled.connect(self._emit_changed)
         self._style_mode_combo.currentIndexChanged.connect(self._update_style_mode_visibility)

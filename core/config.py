@@ -32,6 +32,7 @@ class Config:
     min_record_duration: float = 0.4
     play_sounds: bool = True
     beep_volume: float = 0.6
+    warning_volume: float = 0.6
     show_overlay: bool = True
     autostart: bool = True
     style: str = "original"

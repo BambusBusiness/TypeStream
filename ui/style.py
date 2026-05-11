@@ -398,7 +398,7 @@ QListWidget::item {{
     background: {p.surface_elevated};
     border: 1px solid transparent;
     border-radius: 10px;
-    padding: 10px 18px 10px 18px;
+    padding: 0;
     margin: 2px 2px;
     color: {p.fg};
 }}
