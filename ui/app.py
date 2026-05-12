@@ -57,7 +57,7 @@ class AppController(QObject):
         self._config = Config.load()
         self._history = History(limit=self._config.history_limit)
         self._stats = Stats()
-        self._recorder = AudioRecorder()
+        self._recorder = AudioRecorder(input_device=self._config.input_device)
         self._transcriber = Transcriber(
             engine=self._config.engine,
             api_key=self._config.api_key,
@@ -132,6 +132,7 @@ class AppController(QObject):
         self._main_window.insert_requested.connect(self._on_insert_request)
         self._main_window.style_changed.connect(self._on_style_changed)
         self._main_window.settings_view().changed.connect(self._apply_settings_live)
+        self._main_window.settings_view().style_changed.connect(self._on_style_changed)
 
         q = Qt.ConnectionType.QueuedConnection
         self._record_start.connect(self._start_recording, q)
@@ -185,6 +186,8 @@ class AppController(QObject):
         self._config.save()
         if new_cfg.history_limit != prev.history_limit:
             self._history.set_limit(new_cfg.history_limit)
+        if new_cfg.input_device != prev.input_device:
+            self._recorder.set_input_device(new_cfg.input_device)
         if (
             new_cfg.engine != prev.engine
             or new_cfg.api_key != prev.api_key
@@ -224,7 +227,7 @@ class AppController(QObject):
         palette = get_palette(self._resolved_theme())
         self._app.setStyleSheet(build_qss(palette))
         self._overlay.apply_palette(palette)
-        apply_card_shadow(self._main_window.list_widget(), palette)
+        apply_card_shadow(self._main_window.history_widget(), palette)
 
     def _resolved_theme(self) -> str:
         if self._config.theme == "system":
@@ -262,6 +265,7 @@ class AppController(QObject):
             self._transcriber.set_prompt(self._whisper_prompt())
         self._tray.update_styles(styles, self._config.style)
         self._main_window.update_styles(styles, self._config.style)
+        self._main_window.settings_view().update_styles(styles, self._config.style)
 
     def _on_style_changed(self, key: str) -> None:
         if key == self._config.style:
@@ -271,6 +275,7 @@ class AppController(QObject):
         self._transcriber.set_prompt(self._whisper_prompt())
         self._tray.set_active_style(key)
         self._main_window.set_active_style(key)
+        self._main_window.settings_view().set_active_style(key)
         label = find_style(key, self._config.custom_style_prompt).label
         self._notify(f"Stil: {label}", "info")
 

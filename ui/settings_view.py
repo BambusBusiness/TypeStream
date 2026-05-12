@@ -26,6 +26,8 @@ from PyQt6.QtWidgets import (
 from core import local_engine
 from core.config import Config
 from core.history import HistoryEntry
+from core.recorder import list_input_devices
+from core.styles import Style
 from ui.hotkey_capture import HotkeyCaptureButton
 from ui.local_engine_dialog import LocalEngineInstallDialog
 from ui.style import style_mono_section, style_serif_title
@@ -133,6 +135,7 @@ def _stats_card_widget(title_label: QLabel, value: QLabel, meta: QLabel) -> QFra
 class SettingsView(QWidget):
     changed = pyqtSignal(object)
     back_requested = pyqtSignal()
+    style_changed = pyqtSignal(str)
 
     def __init__(self, config: Config, parent=None):
         super().__init__(parent)
@@ -199,6 +202,11 @@ class SettingsView(QWidget):
         self._paste_hotkey_btn = HotkeyCaptureButton(config.paste_hotkey)
 
         # ---- Aufnahme widgets ----
+        self._input_device_combo = QComboBox()
+        self._input_device_combo.setMinimumContentsLength(28)
+        self._input_device_value = config.input_device
+        self.refresh_input_devices()
+
         self._min_duration_spin = QDoubleSpinBox()
         self._min_duration_spin.setRange(0.0, 3.0)
         self._min_duration_spin.setSingleStep(0.1)
@@ -246,6 +254,11 @@ class SettingsView(QWidget):
         self._autostart_check.setChecked(config.autostart)
 
         # ---- Stil widgets ----
+        self._active_style_combo = QComboBox()
+        self._active_style_combo.setMinimumWidth(180)
+        # Items are populated via update_styles() once the controller knows
+        # the available styles (incl. optional custom prompt).
+
         self._style_mode_combo = QComboBox()
         for v, l in STYLE_MODES:
             self._style_mode_combo.addItem(l, v)
@@ -376,6 +389,71 @@ class SettingsView(QWidget):
         self._sidebar.setCurrentRow(0)
         self._stack.setCurrentIndex(0)
 
+    def update_styles(self, styles: list[Style], active_key: str) -> None:
+        self._active_style_combo.blockSignals(True)
+        self._active_style_combo.clear()
+        for s in styles:
+            self._active_style_combo.addItem(s.label, s.key)
+        idx = self._active_style_combo.findData(active_key)
+        if idx >= 0:
+            self._active_style_combo.setCurrentIndex(idx)
+        self._style_key = active_key
+        self._active_style_combo.blockSignals(False)
+
+    def set_active_style(self, key: str) -> None:
+        self._style_key = key
+        idx = self._active_style_combo.findData(key)
+        if idx < 0 or idx == self._active_style_combo.currentIndex():
+            return
+        self._active_style_combo.blockSignals(True)
+        self._active_style_combo.setCurrentIndex(idx)
+        self._active_style_combo.blockSignals(False)
+
+    def _on_active_style_changed(self, _index: int) -> None:
+        key = self._active_style_combo.currentData()
+        if not key or key == self._style_key:
+            return
+        self._style_key = key
+        if not self._emit_blocked:
+            self.style_changed.emit(key)
+
+    def refresh_input_devices(self) -> None:
+        """Re-enumerate audio devices and preserve current selection if still
+        present. Called on init and from MainWindow.show_settings() so plugged-
+        /unplugged microphones surface without an app restart."""
+        was_blocked = self._emit_blocked
+        self._emit_blocked = True
+        try:
+            current = self._input_device_value
+            self._input_device_combo.blockSignals(True)
+            self._input_device_combo.clear()
+            self._input_device_combo.addItem("Systemstandard", "")
+            for name, label in list_input_devices():
+                self._input_device_combo.addItem(label, name)
+            idx = self._input_device_combo.findData(current)
+            if idx >= 0:
+                self._input_device_combo.setCurrentIndex(idx)
+            else:
+                # Saved device disappeared — show it as inactive so the user
+                # sees what was selected, even though it will fall back to
+                # the system default on the next recording.
+                if current:
+                    self._input_device_combo.addItem(
+                        f"{current}  ·  nicht verfügbar", current
+                    )
+                    self._input_device_combo.setCurrentIndex(
+                        self._input_device_combo.count() - 1
+                    )
+                else:
+                    self._input_device_combo.setCurrentIndex(0)
+            self._input_device_combo.blockSignals(False)
+        finally:
+            self._emit_blocked = was_blocked
+
+    def _on_input_device_changed(self, _index: int) -> None:
+        self._input_device_value = self._input_device_combo.currentData() or ""
+        self._emit_changed()
+
     def update_stats(self, entries: Iterable[HistoryEntry]) -> None:
         last10 = list(entries)[:10]
         a_id = self._benchmark_a_combo.currentData() or "openai"
@@ -450,6 +528,9 @@ class SettingsView(QWidget):
             self._paste_hotkey_btn.setValue(config.paste_hotkey)
             self._min_duration_spin.setValue(config.min_record_duration)
             self._history_limit_spin.setValue(config.history_limit)
+            if config.input_device != self._input_device_value:
+                self._input_device_value = config.input_device
+                self.refresh_input_devices()
             self._play_sounds_check.setChecked(config.play_sounds)
             self._beep_volume_slider.setValue(int(round(config.beep_volume * 100)))
             self._warning_volume_slider.setValue(int(round(config.warning_volume * 100)))
@@ -480,6 +561,7 @@ class SettingsView(QWidget):
             record_mode=self._mode_combo.currentData(),
             history_limit=self._history_limit_spin.value(),
             min_record_duration=float(self._min_duration_spin.value()),
+            input_device=self._input_device_value,
             play_sounds=self._play_sounds_check.isChecked(),
             beep_volume=self._beep_volume_slider.value() / 100.0,
             warning_volume=self._warning_volume_slider.value() / 100.0,
@@ -579,6 +661,7 @@ class SettingsView(QWidget):
         form = QFormLayout()
         form.setHorizontalSpacing(16)
         form.setVerticalSpacing(10)
+        form.addRow("Mikrofon", self._input_device_combo)
         form.addRow("Min. Aufnahme-Dauer", self._min_duration_spin)
         form.addRow("Verlauf-Limit", self._history_limit_spin)
         form.addRow("", self._play_sounds_check)
@@ -613,6 +696,7 @@ class SettingsView(QWidget):
         form = QFormLayout()
         form.setHorizontalSpacing(16)
         form.setVerticalSpacing(10)
+        form.addRow("Aktiver Stil", self._active_style_combo)
         form.addRow("Stil-Modus", self._style_mode_combo)
         form.addRow(self._refine_model_label, self._refine_model_combo)
         form.addRow("Eigener Stil", self._custom_style_edit)
@@ -622,8 +706,8 @@ class SettingsView(QWidget):
             "geschickt — der Effekt ist subtil.\n"
             "LLM-Refine: das fertige Transkript wird zusätzlich an GPT geschickt und "
             "konsequent umformuliert — kostet einen weiteren API-Aufruf pro Aufnahme.\n\n"
-            "Den aktiven Stil wählst du im Tray-Menü oder oben im Hauptfenster unter „Stil“. "
-            "Ein leerer Custom-Prompt blendet den Eintrag aus."
+            "Den aktiven Stil kannst du auch hier, oben im Hauptfenster oder im Tray-Menü "
+            "wechseln. Ein leerer Custom-Prompt blendet den Eintrag „Eigener Stil“ aus."
         )
 
         layout = QVBoxLayout()
@@ -695,6 +779,7 @@ class SettingsView(QWidget):
         self._mode_combo.currentIndexChanged.connect(self._emit_changed)
         self._record_hotkey_btn.captured.connect(self._emit_changed)
         self._paste_hotkey_btn.captured.connect(self._emit_changed)
+        self._input_device_combo.currentIndexChanged.connect(self._on_input_device_changed)
         self._min_duration_spin.valueChanged.connect(self._emit_changed)
         self._history_limit_spin.valueChanged.connect(self._emit_changed)
         self._play_sounds_check.toggled.connect(self._emit_changed)
@@ -702,6 +787,7 @@ class SettingsView(QWidget):
         self._warning_volume_slider.valueChanged.connect(self._emit_changed)
         self._show_overlay_check.toggled.connect(self._emit_changed)
         self._autostart_check.toggled.connect(self._emit_changed)
+        self._active_style_combo.currentIndexChanged.connect(self._on_active_style_changed)
         self._style_mode_combo.currentIndexChanged.connect(self._update_style_mode_visibility)
         self._style_mode_combo.currentIndexChanged.connect(self._emit_changed)
         self._refine_model_combo.currentIndexChanged.connect(self._emit_changed)

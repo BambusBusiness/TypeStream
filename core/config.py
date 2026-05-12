@@ -30,6 +30,7 @@ class Config:
     history_limit: int = 50
     language: str = "de"
     min_record_duration: float = 0.4
+    input_device: str = ""
     play_sounds: bool = True
     beep_volume: float = 0.6
     warning_volume: float = 0.6

@@ -386,6 +386,41 @@ QComboBox QAbstractItemView {{
     outline: none;
 }}
 
+QFrame#historyCard {{
+    background: {p.surface};
+    border: 1px solid {p.border};
+    border-radius: 12px;
+}}
+
+QScrollArea#historyScroll {{
+    background: transparent;
+    border: none;
+}}
+
+QScrollArea#historyScroll > QWidget {{
+    background: transparent;
+}}
+
+QWidget#historyContainer {{
+    background: transparent;
+}}
+
+QFrame#historyRow {{
+    background: {p.surface_elevated};
+    border: 1px solid transparent;
+    border-radius: 10px;
+}}
+
+QFrame#historyRow:hover {{
+    background: {p.surface_hover};
+    border-color: {p.border_hover};
+}}
+
+QFrame#historyRow[selected="true"] {{
+    background: {p.surface_elevated};
+    border-color: {p.primary};
+}}
+
 QListWidget {{
     background: {p.surface};
     border: 1px solid {p.border};

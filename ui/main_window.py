@@ -2,16 +2,16 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PyQt6.QtCore import QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QCloseEvent, QResizeEvent
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QCloseEvent, QMouseEvent
 from PyQt6.QtWidgets import (
     QComboBox,
+    QFrame,
     QHBoxLayout,
     QLabel,
-    QListWidget,
-    QListWidgetItem,
     QMainWindow,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QStackedWidget,
     QVBoxLayout,
@@ -55,65 +55,71 @@ def _benchmark_text(entry: HistoryEntry) -> str:
     return "  ·  ".join(parts)
 
 
-class HistoryRow(QWidget):
-    def __init__(self, entry: HistoryEntry, parent=None):
-        super().__init__(parent)
-        layout = QVBoxLayout(self)
-        # Padding lives on the inner widget, not on QListWidget::item, so the
-        # parent's setSizeHint() reflects the *real* required height — otherwise
-        # item-padding silently eats height and the bottom of descenders ('g',
-        # 'p', 'y') gets clipped on single-line entries.
-        layout.setContentsMargins(18, 12, 18, 12)
-        layout.setSpacing(4)
+class HistoryRow(QFrame):
+    clicked = pyqtSignal(int)
+    double_clicked = pyqtSignal(int)
 
-        text = entry.text if len(entry.text) <= 220 else entry.text[:220] + "…"
-        self._text_label = QLabel(text)
-        self._text_label.setWordWrap(True)
-        self._text_label.setProperty("role", "history-text")
-        self._text_label.setSizePolicy(
+    def __init__(self, index: int, entry: HistoryEntry, parent=None):
+        super().__init__(parent)
+        self._index = index
+        self.setObjectName("historyRow")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setProperty("selected", "false")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(15, 10, 15, 10)
+        layout.setSpacing(7)
+
+        text_label = QLabel(entry.text)
+        text_label.setWordWrap(True)
+        text_label.setProperty("role", "history-text")
+        text_label.setIndent(0)
+        text_label.setContentsMargins(0, 0, 0, 0)
+        text_label.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
         )
-        layout.addWidget(self._text_label)
+        layout.addWidget(text_label)
 
         meta = QHBoxLayout()
-        meta.setSpacing(0)
+        meta.setSpacing(12)
         meta.setContentsMargins(0, 0, 0, 0)
-        self._timestamp_label = QLabel(_format_timestamp(entry.timestamp))
-        self._timestamp_label.setProperty("role", "timestamp")
-        meta.addWidget(self._timestamp_label)
+        timestamp_label = QLabel(_format_timestamp(entry.timestamp))
+        timestamp_label.setProperty("role", "timestamp")
+        timestamp_label.setIndent(0)
+        timestamp_label.setContentsMargins(0, 0, 0, 0)
+        timestamp_label.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+        meta.addWidget(timestamp_label)
 
         bench_text = _benchmark_text(entry)
         if bench_text:
-            self._bench_label = QLabel(bench_text)
-            self._bench_label.setProperty("role", "benchmark")
-            meta.addWidget(self._bench_label)
+            bench_label = QLabel(bench_text)
+            bench_label.setProperty("role", "benchmark")
+            bench_label.setIndent(0)
+            bench_label.setContentsMargins(0, 0, 0, 0)
+            meta.addWidget(bench_label)
 
-        meta.addStretch()
         layout.addLayout(meta)
 
+    def set_selected(self, selected: bool) -> None:
+        self.setProperty("selected", "true" if selected else "false")
+        # Dynamic-property selectors (`[selected="true"]`) only repaint after
+        # an unpolish/polish cycle, otherwise the border stays stale.
+        self.style().unpolish(self)
+        self.style().polish(self)
 
-class HistoryListWidget(QListWidget):
-    def resizeEvent(self, event: QResizeEvent) -> None:
-        super().resizeEvent(event)
-        self.recalc_item_sizes()
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit(self._index)
+        super().mousePressEvent(event)
 
-    def recalc_item_sizes(self) -> None:
-        viewport_width = self.viewport().width() - 28
-        if viewport_width <= 0:
-            return
-        for i in range(self.count()):
-            item = self.item(i)
-            w = self.itemWidget(item)
-            if w is None:
-                continue
-            w.setFixedWidth(viewport_width)
-            # Force the wrapped layout to recompute with the new fixed width
-            # before we read sizeHint — otherwise QLabel.wordWrap returns a
-            # stale (often-too-small) height and the bottom of the descenders
-            # gets clipped on single-line entries.
-            w.layout().activate()
-            w.adjustSize()
-            item.setSizeHint(QSize(viewport_width, w.sizeHint().height()))
+    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.double_clicked.emit(self._index)
+        super().mouseDoubleClickEvent(event)
 
 
 class MainWindow(QMainWindow):
@@ -125,6 +131,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._history = history
         self._stats = stats
+        self._rows: list[HistoryRow] = []
+        self._selected_index: int = -1
         self.setWindowTitle("TypeStream")
         self.resize(820, 620)
 
@@ -156,6 +164,7 @@ class MainWindow(QMainWindow):
 
     def show_settings(self) -> None:
         self._settings_view.update_stats(self._history.all())
+        self._settings_view.refresh_input_devices()
         self._settings_view.reset_to_first_page()
         self._stack.setCurrentIndex(PAGE_SETTINGS)
 
@@ -200,13 +209,33 @@ class MainWindow(QMainWindow):
         header.addWidget(self._settings_btn)
         layout.addLayout(header)
 
-        # History list
-        self._list = HistoryListWidget()
-        self._list.setSpacing(0)
-        self._list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self._list.setResizeMode(QListWidget.ResizeMode.Adjust)
-        self._list.itemDoubleClicked.connect(self._on_double_click)
-        layout.addWidget(self._list, 1)
+        # History list — QScrollArea inside a card-styled QFrame. We let
+        # QVBoxLayout + QLabel.wordWrap compute heights naturally; no manual
+        # elidedText, no sizeHint patching.
+        self._history_card = QFrame()
+        self._history_card.setObjectName("historyCard")
+        card_layout = QVBoxLayout(self._history_card)
+        card_layout.setContentsMargins(10, 10, 10, 10)
+        card_layout.setSpacing(0)
+
+        self._scroll = QScrollArea()
+        self._scroll.setObjectName("historyScroll")
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+
+        self._history_container = QWidget()
+        self._history_container.setObjectName("historyContainer")
+        self._history_layout = QVBoxLayout(self._history_container)
+        self._history_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self._history_layout.setContentsMargins(0, 0, 0, 0)
+        self._history_layout.setSpacing(8)
+
+        self._scroll.setWidget(self._history_container)
+        card_layout.addWidget(self._scroll)
+        layout.addWidget(self._history_card, 1)
 
         # Empty state
         self._empty_label = QLabel(
@@ -242,32 +271,43 @@ class MainWindow(QMainWindow):
 
         return page
 
-    def list_widget(self) -> QListWidget:
-        return self._list
+    def history_widget(self) -> QWidget:
+        return self._history_card
 
     def refresh(self) -> None:
         self._stats_label.setText(
             f"{self._stats.today:,} Wörter heute  ·  {self._stats.total:,} Wörter gesamt".replace(",", ".")
         )
-        self._list.clear()
+
+        while self._history_layout.count():
+            item = self._history_layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.setParent(None)
+                w.deleteLater()
+        self._rows.clear()
+
         entries = self._history.all()
-        for entry in entries:
-            item = QListWidgetItem()
-            self._list.addItem(item)
-            row = HistoryRow(entry)
-            self._list.setItemWidget(item, row)
-        self._list.recalc_item_sizes()
+        for i, entry in enumerate(entries):
+            row = HistoryRow(i, entry)
+            row.clicked.connect(self._select_row)
+            row.double_clicked.connect(self._on_row_double_clicked)
+            self._history_layout.addWidget(row)
+            self._rows.append(row)
 
         if entries:
-            self._list.setCurrentRow(0)
-            self._list.show()
+            self._selected_index = 0
+            self._rows[0].set_selected(True)
+            self._scroll.verticalScrollBar().setValue(0)
+            self._history_card.show()
             self._empty_label.hide()
             self._copy_btn.setEnabled(True)
             self._insert_btn.setEnabled(True)
             self._delete_btn.setEnabled(True)
             self._clear_btn.setEnabled(True)
         else:
-            self._list.hide()
+            self._selected_index = -1
+            self._history_card.hide()
             self._empty_label.show()
             self._copy_btn.setEnabled(False)
             self._insert_btn.setEnabled(False)
@@ -277,11 +317,24 @@ class MainWindow(QMainWindow):
         # Keep statistics page live whenever history changes
         self._settings_view.update_stats(entries)
 
+    def _select_row(self, index: int) -> None:
+        if not (0 <= index < len(self._rows)):
+            return
+        if self._selected_index == index:
+            return
+        if 0 <= self._selected_index < len(self._rows):
+            self._rows[self._selected_index].set_selected(False)
+        self._rows[index].set_selected(True)
+        self._selected_index = index
+
+    def _on_row_double_clicked(self, index: int) -> None:
+        self._select_row(index)
+        self._on_copy()
+
     def _selected_entry(self) -> HistoryEntry | None:
-        row = self._list.currentRow()
         entries = self._history.all()
-        if 0 <= row < len(entries):
-            return entries[row]
+        if 0 <= self._selected_index < len(entries):
+            return entries[self._selected_index]
         return None
 
     def _on_copy(self) -> None:
@@ -294,13 +347,9 @@ class MainWindow(QMainWindow):
         if e is not None:
             self.insert_requested.emit(e.text)
 
-    def _on_double_click(self, _item: QListWidgetItem) -> None:
-        self._on_copy()
-
     def _on_delete(self) -> None:
-        row = self._list.currentRow()
-        if row >= 0:
-            self._history.remove(row)
+        if self._selected_index >= 0:
+            self._history.remove(self._selected_index)
             self.refresh()
 
     def _on_clear(self) -> None:
