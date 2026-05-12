@@ -24,7 +24,6 @@ echo [3/4] Running PyInstaller
     --clean ^
     --icon assets\icon.ico ^
     --add-data "assets;assets" ^
-    --uac-admin ^
     --hidden-import PyQt6.sip ^
     --collect-submodules openai ^
     main.py
