@@ -32,3 +32,10 @@ Thumbs.db
 
 # Local-only docs
 TypeStream-Anleitung.html
+
+# Local dev launchers (end users use the installer)
+run.bat
+run-admin.bat
+
+# PyInstaller regenerates this on every build
+TypeStream.spec
