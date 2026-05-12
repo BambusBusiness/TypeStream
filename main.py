@@ -76,11 +76,14 @@ def excepthook(exc_type, exc_value, exc_tb):
 
 sys.excepthook = excepthook
 
+from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 from PyQt6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 
 from core import sounds
 from ui.app import AppController
 from ui.style import APP_QSS
+
+SINGLE_INSTANCE_KEY = "TypeStream-SingleInstance"
 
 
 def main() -> int:
@@ -89,6 +92,23 @@ def main() -> int:
     app.setQuitOnLastWindowClosed(False)
     app.setApplicationName("TypeStream")
     app.setStyleSheet(APP_QSS)
+
+    probe = QLocalSocket()
+    probe.connectToServer(SINGLE_INSTANCE_KEY)
+    if probe.waitForConnected(300):
+        log.info("Another TypeStream instance is already running — focusing it")
+        probe.write(b"show")
+        probe.flush()
+        probe.waitForBytesWritten(300)
+        probe.disconnectFromServer()
+        return 0
+
+    QLocalServer.removeServer(SINGLE_INSTANCE_KEY)
+    instance_server = QLocalServer()
+    if not instance_server.listen(SINGLE_INSTANCE_KEY):
+        log.warning(
+            "Single-instance server failed to listen: %s", instance_server.errorString()
+        )
 
     log.info("Initializing audio feedback")
     sounds.init()
@@ -105,8 +125,17 @@ def main() -> int:
 
     log.info("Constructing AppController")
     controller = AppController(app)
+
+    def _on_second_instance() -> None:
+        sock = instance_server.nextPendingConnection()
+        if sock is not None:
+            sock.disconnectFromServer()
+        log.info("Second-instance ping received — showing main window")
+        controller.show_main_window()
+
+    instance_server.newConnection.connect(_on_second_instance)
+
     log.info("AppController constructed; entering event loop")
-    _ = controller
     rc = app.exec()
     log.info("Event loop exited with rc=%s", rc)
     return rc

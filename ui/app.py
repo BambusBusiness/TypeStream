@@ -120,6 +120,12 @@ class AppController(QObject):
 
         QTimer.singleShot(UPDATE_CHECK_DELAY_MS, self._start_update_check)
 
+        threading.Thread(
+            target=self._recorder.prewarm,
+            name="recorder-prewarm",
+            daemon=True,
+        ).start()
+
     def _wire_signals(self) -> None:
         self._tray.open_history.connect(self.open_history)
         self._tray.open_settings.connect(self.open_settings)
@@ -166,6 +172,11 @@ class AppController(QObject):
             log.exception("Hotkey registration failed")
             self._notify(f"Hotkey-Fehler: {e}", "error", important=True)
 
+    def show_main_window(self) -> None:
+        self._main_window.show()
+        self._main_window.raise_()
+        self._main_window.activateWindow()
+
     def open_history(self) -> None:
         self._main_window.refresh()
         self._main_window.show()
@@ -188,6 +199,11 @@ class AppController(QObject):
             self._history.set_limit(new_cfg.history_limit)
         if new_cfg.input_device != prev.input_device:
             self._recorder.set_input_device(new_cfg.input_device)
+            threading.Thread(
+                target=self._recorder.prewarm,
+                name="recorder-prewarm",
+                daemon=True,
+            ).start()
         if (
             new_cfg.engine != prev.engine
             or new_cfg.api_key != prev.api_key

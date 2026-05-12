@@ -134,6 +134,27 @@ class AudioRecorder:
     def set_input_device(self, name: str) -> None:
         self._input_device = name
 
+    def prewarm(self) -> None:
+        """Open and immediately close a short InputStream so the WASAPI driver
+        is initialized before the first real recording. Cuts cold-start latency
+        on the first hotkey press from ~hundreds of ms (sometimes seconds when
+        the endpoint is idle-suspended) down to driver wake-up time."""
+        device_index = resolve_input_device(self._input_device)
+        try:
+            stream = sd.InputStream(
+                samplerate=SAMPLE_RATE,
+                channels=CHANNELS,
+                dtype="int16",
+                latency="low",
+                device=device_index,
+            )
+            stream.start()
+            stream.stop()
+            stream.close()
+            log.info("Recorder prewarmed (device=%s)", device_index)
+        except Exception as e:
+            log.debug("Recorder prewarm failed: %s", e)
+
     def start(self) -> None:
         if self._stream is not None:
             return
