@@ -224,6 +224,26 @@ QLabel[role="benchmark"] {{
     padding: 0;
 }}
 
+QToolButton[role="help"] {{
+    color: {p.fg_subtle};
+    background: transparent;
+    border: 1px solid {p.border_hover};
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 0;
+    min-height: 0;
+}}
+
+QToolButton[role="help"]:hover {{
+    color: {p.fg};
+    border-color: {p.primary};
+}}
+
+QToolButton[role="help"]:pressed {{
+    background: {p.surface_hover};
+}}
+
 QLabel[role="stats-value"] {{
     color: {p.fg};
     font-family: {SERIF_STACK};

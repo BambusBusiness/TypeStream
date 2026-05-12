@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>TypeStream — Anleitung</title>
+<style>
+  body { font-family: Calibri, "Segoe UI", Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #1a1a1a; max-width: 720px; margin: 2em auto; padding: 0 1em; }
+  h1 { font-size: 26pt; font-weight: 600; margin-top: 0.4em; margin-bottom: 0.2em; color: #0f172a; }
+  h2 { font-size: 18pt; font-weight: 600; margin-top: 1.8em; margin-bottom: 0.4em; color: #0f172a; border-bottom: 1px solid #cbd5e1; padding-bottom: 0.2em; }
+  h3 { font-size: 13pt; font-weight: 600; margin-top: 1.4em; margin-bottom: 0.3em; color: #0f172a; }
+  p { margin: 0.5em 0; }
+  ul, ol { margin: 0.4em 0 0.8em 1.4em; padding: 0; }
+  li { margin: 0.25em 0; }
+  strong { font-weight: 600; }
+  code, kbd { font-family: Consolas, "Courier New", monospace; font-size: 10.5pt; background: #f1f5f9; padding: 1px 5px; border-radius: 3px; }
+  hr { border: none; border-top: 1px solid #cbd5e1; margin: 2em 0; }
+  .lead { font-size: 12pt; color: #475569; margin-bottom: 1em; }
+  .toc { background: #f8fafc; border-left: 3px solid #64748b; padding: 0.8em 1.2em; margin: 1em 0 2em; }
+  .toc ol { margin: 0; padding-left: 1.4em; }
+  .callout { background: #fef9c3; border-left: 3px solid #ca8a04; padding: 0.6em 1em; margin: 1em 0; }
+</style>
+</head>
+<body>
+
+<h1>TypeStream</h1>
+<p class="lead"><strong>Sprich — und der Text erscheint dort, wo dein Cursor blinkt.</strong></p>
+
+<p>TypeStream ist ein Diktier-Tool für Windows. Du hältst eine Taste, sprichst, lässt los — der gesprochene Text wird transkribiert und automatisch in das gerade aktive Fenster getippt (E-Mail, Chat, Word, Browser, egal wo). Im Hintergrund läuft TypeStream als kleines Symbol unten rechts neben der Uhr (im &bdquo;Tray&ldquo;).</p>
+
+<div class="toc">
+  <strong>Inhalt</strong>
+  <ol>
+    <li>Erste Schritte</li>
+    <li>So funktioniert die tägliche Bedienung</li>
+    <li>Das Hauptfenster (Verlauf)</li>
+    <li>Das Tray-Symbol</li>
+    <li>Die Einstellungen — alle Optionen erklärt</li>
+    <li>Was tun, wenn etwas nicht klappt?</li>
+  </ol>
+</div>
+
+<hr>
+
+<h2>1. Erste Schritte</h2>
+
+<p>Beim ersten Start öffnen sich automatisch die <strong>Einstellungen</strong>, weil TypeStream wissen muss, wie es deinen Text in Schrift umwandeln soll. Es gibt zwei Wege:</p>
+
+<ul>
+  <li><strong>OpenAI (Cloud)</strong> &mdash; empfohlen für die meisten. Schnell, sehr gute Qualität, kostet ca. 0,2&ndash;0,4&nbsp;Cent pro Minute Audio. Du brauchst einen API-Key von OpenAI (siehe unten).</li>
+  <li><strong>Faster-Whisper (Lokal)</strong> &mdash; läuft komplett auf deinem Rechner, ohne Internet, ohne Kosten. Beim ersten Mal lädt TypeStream das Sprachmodell einmalig herunter (ca. 75&ndash;470&nbsp;MB).</li>
+</ul>
+
+<h3>Wenn du OpenAI nutzen willst</h3>
+<ol>
+  <li>Geh auf <strong>platform.openai.com</strong>, erstelle ein Konto und lade ein paar Euro Guthaben auf.</li>
+  <li>Erstelle dort unter &bdquo;API Keys&ldquo; einen neuen Schlüssel (beginnt mit <code>sk-...</code>).</li>
+  <li>In TypeStream &rarr; Einstellungen &rarr; <strong>Transkription</strong> &rarr; Feld <strong>API-Key</strong> den Schlüssel einfügen.</li>
+  <li>Fertig &mdash; du kannst loslegen.</li>
+</ol>
+
+<h3>Wenn du lokal arbeiten willst (ohne Cloud)</h3>
+<ol>
+  <li>In den Einstellungen &rarr; <strong>Transkription</strong> &rarr; Quelle auf <strong>Faster-Whisper (Lokal)</strong> stellen.</li>
+  <li>Klick auf <strong>Faster-Whisper installieren</strong>. Das Modell wird im Hintergrund geladen &mdash; das dauert beim ersten Mal etwas.</li>
+  <li>Fertig &mdash; keine Internet-Verbindung mehr nötig, keine Kosten.</li>
+</ol>
+
+<hr>
+
+<h2>2. So funktioniert die tägliche Bedienung</h2>
+
+<p>TypeStream hat <strong>keinen großen Aufnahme-Knopf zum Klicken</strong> &mdash; der Sinn ist ja, dass du nicht das Fenster wechseln musst. Stattdessen benutzt du eine <strong>Aufnahme-Taste</strong> (Standard: <kbd>F9</kbd>), die überall in Windows funktioniert, egal welches Programm gerade offen ist.</p>
+
+<h3>Push-to-Talk (Standard)</h3>
+<p>Wie bei einem Walkie-Talkie:</p>
+<ol>
+  <li>Cursor in das Feld setzen, in das der Text soll (z.&nbsp;B. E-Mail-Fenster).</li>
+  <li><kbd>F9</kbd> <strong>gedrückt halten</strong> und sprechen.</li>
+  <li><kbd>F9</kbd> <strong>loslassen</strong> &mdash; nach ein, zwei Sekunden erscheint der Text dort, wo dein Cursor war.</li>
+</ol>
+<p>Während der Aufnahme erscheint unten in der Bildschirmmitte ein kleiner schwebender Hinweis (&bdquo;Overlay&ldquo;) &mdash; daran erkennst du, dass das Mikrofon zuhört. Zusätzlich hörst du beim Start- und Stop-Drücken einen leisen Ton.</p>
+
+<h3>Toggle-Modus (Alternative)</h3>
+<p>Wenn du nicht ständig die Taste halten willst:</p>
+<ol>
+  <li><kbd>F9</kbd> drücken &rarr; Aufnahme startet, du kannst die Taste loslassen.</li>
+  <li>Sprechen, so lange du willst.</li>
+  <li><kbd>F9</kbd> erneut drücken &rarr; Aufnahme stoppt, Text wird eingefügt.</li>
+</ol>
+<p>Diesen Modus stellst du in Einstellungen &rarr; <strong>Hotkeys</strong> &rarr; <strong>Modus</strong> um.</p>
+
+<h3>Letzten Text nochmal einfügen</h3>
+<p>Klappt das Auto-Einfügen mal nicht (kommt z.&nbsp;B. bei manchen Spielen oder Admin-Fenstern vor), kannst du den letzten Text mit <kbd>Strg</kbd>&nbsp;+&nbsp;<kbd>Alt</kbd>&nbsp;+&nbsp;<kbd>V</kbd> noch einmal einfügen.</p>
+
+<hr>
+
+<h2>3. Das Hauptfenster (Verlauf)</h2>
+
+<p>Doppelklick auf das Tray-Symbol (oder Rechtsklick &rarr; &bdquo;Verlauf öffnen&ldquo;) öffnet das Hauptfenster. Es zeigt deine letzten Aufnahmen.</p>
+
+<h3>Was ist oben zu sehen?</h3>
+<ul>
+  <li><strong>&bdquo;TypeStream&ldquo;</strong> als Titel, darunter wie viele Wörter du heute und insgesamt diktiert hast.</li>
+  <li><strong>STIL</strong> (rechts oben) &mdash; ein Dropdown, mit dem du blitzschnell den Schreibstil wechseln kannst (Original / Professionell / Locker / Eigener Stil). Mehr dazu unter &bdquo;Stil&ldquo; weiter unten.</li>
+  <li><strong>Einstellungen</strong> &mdash; öffnet das Konfigurationsfenster.</li>
+</ul>
+
+<h3>Die Verlaufsliste</h3>
+<p>Jede Zeile ist eine Aufnahme. Links steht der erkannte Text, darunter Datum/Uhrzeit. Falls Benchmark-Modus an ist, stehen zusätzlich die Laufzeiten der beiden Engines daneben.</p>
+
+<h3>Die Buttons unten</h3>
+<ul>
+  <li><strong>Kopieren</strong> &mdash; legt den ausgewählten Text in die Zwischenablage (du kannst ihn dann mit <kbd>Strg</kbd>+<kbd>V</kbd> woanders einfügen).</li>
+  <li><strong>Einfügen</strong> &mdash; versteckt das Fenster und tippt den Text in das Fenster, das danach den Fokus bekommt. <em>Tipp:</em> ein Doppelklick auf einen Eintrag macht dasselbe wie &bdquo;Kopieren&ldquo;.</li>
+  <li><strong>Löschen</strong> &mdash; entfernt den ausgewählten Eintrag aus dem Verlauf.</li>
+  <li><strong>Alle löschen</strong> &mdash; leert den kompletten Verlauf.</li>
+</ul>
+
+<hr>
+
+<h2>4. Das Tray-Symbol</h2>
+
+<p>Unten rechts neben der Uhr findest du das TypeStream-Symbol. <strong>Falls du es nicht direkt siehst:</strong> klick auf den kleinen Pfeil nach oben (<strong>^</strong>) links neben den anderen Symbolen &mdash; Windows blendet selten genutzte Tray-Symbole dorthin aus. Per Drag-and-Drop kannst du das TypeStream-Icon von dort dauerhaft in die sichtbare Leiste ziehen.</p>
+
+<p>Das Symbol wechselt die Farbe:</p>
+<ul>
+  <li><strong>normal</strong> &rarr; bereit.</li>
+  <li><strong>rot</strong> &rarr; Aufnahme läuft gerade.</li>
+  <li><strong>gelb</strong> &rarr; Transkription läuft (Audio wird in Text umgewandelt).</li>
+</ul>
+
+<p><strong>Rechtsklick</strong> auf das Symbol öffnet ein Menü:</p>
+<ul>
+  <li><strong>Verlauf öffnen</strong> &mdash; wie Doppelklick.</li>
+  <li><strong>Einstellungen</strong> &mdash; alle Optionen.</li>
+  <li><strong>Stil</strong> &mdash; Stil schnell wechseln, ohne Hauptfenster.</li>
+  <li><strong>Letzte Aufnahme kopieren</strong> &mdash; den letzten Text in die Zwischenablage legen.</li>
+  <li><strong>Update auf v&hellip; laden</strong> &mdash; erscheint nur, wenn eine neue Version verfügbar ist.</li>
+  <li><strong>Beenden</strong> &mdash; schließt TypeStream wirklich (nur das Hauptfenster zu klicken beendet die App nicht).</li>
+</ul>
+
+<hr>
+
+<h2>5. Die Einstellungen — alle Optionen erklärt</h2>
+
+<p>Die Einstellungen sind in sechs Bereiche aufgeteilt, links in der Seitenleiste. <em>Tipp:</em> Neben jeder Einstellung gibt es ein kleines Fragezeichen &mdash; fahre mit der Maus drüber, dann erscheint eine kurze Erklärung als Sprechblase.</p>
+
+<h3>5.1 Transkription</h3>
+<p>Hier legst du fest, <strong>wer</strong> dein Audio in Text umwandelt.</p>
+<ul>
+  <li><strong>Quelle</strong> &mdash; <em>OpenAI API (Cloud)</em> oder <em>Faster-Whisper (Lokal)</em>. Cloud ist schneller, Lokal ist privat und kostenlos.</li>
+  <li><strong>API-Key</strong> <em>(nur OpenAI)</em> &mdash; dein Schlüssel von OpenAI (siehe Erste Schritte).</li>
+  <li><strong>Modell</strong> <em>(nur OpenAI)</em> &mdash; drei Stufen:
+    <ul>
+      <li><code>gpt-4o-mini-transcribe</code> (~0,003&nbsp;$/Min, sehr gutes Preis-Leistungs-Verhältnis &mdash; Voreinstellung)</li>
+      <li><code>whisper-1</code> (~0,006&nbsp;$/Min, klassisches Whisper)</li>
+      <li><code>gpt-4o-transcribe</code> (~0,006&nbsp;$/Min, beste Qualität)</li>
+    </ul>
+  </li>
+  <li><strong>Modell-Größe</strong> <em>(nur Lokal)</em> &mdash; wie groß das lokale Modell sein soll:
+    <ul>
+      <li><code>tiny</code> (~75&nbsp;MB) &mdash; am schnellsten, aber Qualität nur okay.</li>
+      <li><code>base</code> (~150&nbsp;MB) &mdash; guter Kompromiss, voreingestellt.</li>
+      <li><code>small</code> (~470&nbsp;MB) &mdash; beste lokale Qualität, braucht mehr RAM.</li>
+    </ul>
+  </li>
+  <li><strong>Sprache</strong> &mdash; meistens <em>Auto-Erkennung</em>. Wenn du immer in einer Sprache diktierst, hilft eine feste Wahl (z.&nbsp;B. Deutsch) der Erkennung etwas auf die Sprünge.</li>
+  <li><strong>Benchmark-Modus</strong> &mdash; Spielerei für Neugierige: jede Aufnahme wird parallel an OpenAI <em>und</em> lokal geschickt. Beide Laufzeiten landen unter &bdquo;Statistik&ldquo;. Eingefügt wird der Text aus der oben gewählten Quelle. Kostet etwas mehr und erfordert, dass beide Engines konfiguriert sind.</li>
+</ul>
+
+<h3>5.2 Hotkeys</h3>
+<p>Hier definierst du, <strong>welche Taste</strong> was auslöst.</p>
+<ul>
+  <li><strong>Aufnahme</strong> &mdash; die Taste, mit der du das Mikro aktivierst (Standard: <kbd>F9</kbd>). Klick auf den Button, dann drücke die gewünschte Taste oder eine Maus-Sondertaste. Für Push-to-Talk muss es eine <strong>einzelne</strong> Taste sein (keine Kombination), sonst behandelt TypeStream sie automatisch als Toggle.</li>
+  <li><strong>Modus</strong> &mdash; <em>Push-to-Talk</em> (Taste halten) oder <em>Toggle</em> (drücken: Start, nochmal: Stop). Siehe oben.</li>
+  <li><strong>Letzten Text einfügen</strong> &mdash; Taste, die den zuletzt transkribierten Text noch einmal einfügt (Standard: <kbd>Strg</kbd>+<kbd>Alt</kbd>+<kbd>V</kbd>). Hier <em>darf</em> es eine Kombination sein.</li>
+</ul>
+
+<h3>5.3 Aufnahme</h3>
+<p>Alles rund ums Mikrofon und den Aufnahme-Vorgang.</p>
+<ul>
+  <li><strong>Mikrofon</strong> &mdash; welches Eingabegerät benutzt wird. <em>Systemstandard</em> nimmt das, was Windows als Standard-Mikro eingestellt hat. Ein USB-Headset oder externes Mikro kannst du hier explizit auswählen.</li>
+  <li><strong>Min. Aufnahme-Dauer</strong> &mdash; Aufnahmen, die kürzer sind als dieser Wert (Standard: 0,4&nbsp;s), werden verworfen. So vermeidest du, dass versehentliches Antippen der Taste eine leere Datei zur Transkription schickt.</li>
+  <li><strong>Verlauf-Limit</strong> &mdash; wie viele Aufnahmen im Verlauf bleiben (Standard: 50). Ältere fallen automatisch raus.</li>
+  <li><strong>Akustisches Feedback</strong> &mdash; der dezente Piep beim Start und Stop einer Aufnahme. An, wenn du die Bestätigung willst; aus, wenn dich das stört.</li>
+  <li><strong>Aufnahme-Ton</strong> &mdash; Lautstärke der Start/Stop-Töne (Schieberegler, 0&ndash;100&nbsp;%).</li>
+  <li><strong>Warnton</strong> &mdash; Lautstärke der <strong>wichtigen</strong> Warntöne (z.&nbsp;B. wenn die Transkription fehlschlägt). Separat regelbar, damit die freundlichen Start/Stop-Töne leise sein können, kritische Hinweise aber laut.</li>
+  <li><strong>Visuelles Overlay</strong> &mdash; der schwebende Hinweis am unteren Bildschirmrand. An lassen, wenn du wissen willst, wann das Mikro tatsächlich zuhört.</li>
+  <li><strong>Bei Windows-Start automatisch starten</strong> &mdash; TypeStream startet mit Windows. Empfohlen, sonst musst du das Programm jeden Tag manuell öffnen.</li>
+</ul>
+
+<h3>5.4 Stil</h3>
+<p>Diktieren ergibt rohe Sätze (&bdquo;ähm, also, ich denke, dass&hellip;&ldquo;). TypeStream kann das automatisch in einen Schreibstil umformen.</p>
+<ul>
+  <li><strong>Aktiver Stil</strong> &mdash; <em>Original</em> (keine Änderung), <em>Professionell</em> (formell, &bdquo;Sehr geehrte Damen und Herren&hellip;&ldquo;), <em>Locker</em> (Umgangssprache), oder <em>Eigener Stil</em> (siehe unten). Den aktiven Stil kannst du auch oben im Hauptfenster und im Tray-Menü wechseln.</li>
+  <li><strong>Stil-Modus</strong> &mdash; wie der Stil angewendet wird:
+    <ul>
+      <li><strong>Whisper-Hint</strong> <em>(Standard)</em> &mdash; der Stil-Beispieltext wird Whisper als Vorlage mitgegeben. Schnell, kostenlos, aber der Effekt ist subtil.</li>
+      <li><strong>LLM-Refine</strong> &mdash; nach der Transkription geht der Text noch einmal an GPT zum Umformulieren. Klarere Stil-Änderung, kostet aber einen zusätzlichen API-Aufruf pro Aufnahme.</li>
+    </ul>
+  </li>
+  <li><strong>Refine-Modell</strong> <em>(nur bei LLM-Refine sichtbar)</em> &mdash; <em>gpt-4o-mini</em> (günstig, schnell) oder <em>gpt-4o</em> (beste Qualität).</li>
+  <li><strong>Eigener Stil</strong> &mdash; ein Beispieltext im Wunsch-Stil. Schreib hier z.&nbsp;B. einen Absatz so, wie deine Ausgabe klingen soll. Sobald das Feld nicht leer ist, taucht &bdquo;Eigener Stil&ldquo; als zusätzliche Option im Stil-Dropdown auf.</li>
+</ul>
+
+<h3>5.5 Erscheinungsbild</h3>
+<ul>
+  <li><strong>Theme</strong> &mdash; <em>System</em> (folgt dem Windows-Hell/Dunkel-Modus), <em>Dunkel</em>, oder <em>Hell</em>.</li>
+</ul>
+
+<h3>5.6 Statistik</h3>
+<ul>
+  <li><strong>Engine A / Engine B</strong> &mdash; wähle zwei Engines (OpenAI Cloud und Faster-Whisper Lokal), die verglichen werden sollen.</li>
+  <li>Darunter zwei <strong>Kacheln</strong> mit der &Oslash;-Latenz der letzten 10 Aufnahmen für jede Engine, plus die Anzahl der Messungen (n&nbsp;=&nbsp;&hellip;).</li>
+  <li>Ein <strong>Fazit-Satz</strong> unten sagt dir z.&nbsp;B. &bdquo;OpenAI ist im Mittel 2,3&times; schneller als Whisper&ldquo;.</li>
+</ul>
+<p>Sinnvoll nur, wenn du in 5.1 den <strong>Benchmark-Modus</strong> aktiviert hast &mdash; sonst sammelt TypeStream Daten nur für eine der beiden Engines.</p>
+
+<hr>
+
+<h2>6. Was tun, wenn etwas nicht klappt?</h2>
+
+<ul>
+  <li><strong>Es passiert gar nichts, wenn ich F9 drücke</strong> &rarr; Tray-Symbol nicht da? Dann läuft TypeStream nicht. Programm neu starten. Wenn das Symbol da ist, aber F9 keine Reaktion auslöst, vielleicht hat ein anderes Programm (z.&nbsp;B. ein Spiel) die Taste gekapert &mdash; versuche in Einstellungen &rarr; Hotkeys eine andere Aufnahme-Taste.</li>
+  <li><strong>&bdquo;Kein API-Key gesetzt&ldquo;</strong> &rarr; Einstellungen &rarr; Transkription &rarr; API-Key ausfüllen oder auf &bdquo;Faster-Whisper (Lokal)&ldquo; wechseln.</li>
+  <li><strong>&bdquo;Aufnahme zu kurz&ldquo;</strong> &rarr; Du hast die Taste zu schnell losgelassen. Halte sie mindestens so lange wie der &bdquo;Min. Aufnahme-Dauer&ldquo;-Wert (Standard 0,4&nbsp;s).</li>
+  <li><strong>&bdquo;Auto-Einfügen fehlgeschlagen &mdash; Text in Zwischenablage&ldquo;</strong> &rarr; Manche Fenster (Admin-Programme, ältere Spiele) lassen Auto-Tippen nicht zu. Der Text liegt aber in der Zwischenablage &mdash; einfach <kbd>Strg</kbd>+<kbd>V</kbd> drücken, oder den Einfügen-Hotkey (<kbd>Strg</kbd>+<kbd>Alt</kbd>+<kbd>V</kbd>) verwenden.</li>
+  <li><strong>TypeStream lässt sich nicht beenden, wenn ich das Fenster schließe</strong> &rarr; Das ist gewollt. Beim Schließen verschwindet nur das Fenster, das Programm läuft im Tray weiter. Zum vollständigen Beenden Rechtsklick auf das Tray-Symbol &rarr; &bdquo;Beenden&ldquo;.</li>
+</ul>
+
+<hr>
+
+<h2>Datenschutz</h2>
+
+<h3>Wenn du die Cloud-Variante (OpenAI) nutzt</h3>
+<p>Dein Audio wird zur Transkription an OpenAI geschickt. Die wichtigsten Punkte aus deren API-Richtlinien (Stand: Anfang 2026 &mdash; aktuelle Version siehe <code>openai.com/policies</code> und <code>platform.openai.com/docs</code>):</p>
+<ul>
+  <li><strong>Kein Training auf deinen Daten.</strong> Seit März 2023 nutzt OpenAI <em>API</em>-Eingaben (also auch die aus TypeStream) standardmäßig <strong>nicht</strong> für Modelltraining. Das ist der zentrale Unterschied zur kostenlosen Chat-Version auf chat.openai.com, bei der das Gegenteil der Default ist.</li>
+  <li><strong>Speicherung max. 30 Tage.</strong> Audio-Aufnahmen und das transkribierte Ergebnis werden auf OpenAI-Servern für maximal 30 Tage aufbewahrt &mdash; ausschließlich zur Missbrauchs-Erkennung (z.&nbsp;B. CSAM, Terror-Propaganda, automatisierter Missbrauch). Danach werden sie automatisch gelöscht. Zugriff hat in diesem Fenster nur ein eng begrenzter Kreis bei OpenAI, und auch der nur bei konkretem Verdacht.</li>
+  <li><strong>Zero Data Retention (ZDR)</strong> ist als Option für Enterprise-Verträge verfügbar &mdash; damit werden Anfragen gar nicht gespeichert. Für private Accounts mit Pay-as-you-go ist das normalerweise nicht aktiv.</li>
+  <li><strong>Wofür sie es verwenden dürfen.</strong> Laut Business Terms: zur Bereitstellung des Dienstes, zur Erkennung und Verhinderung von Missbrauch, sowie zur Einhaltung rechtlicher Verpflichtungen. <em>Nicht</em> erlaubt: Verkauf, Weitergabe an Dritte zu Werbezwecken, Training. Behörden bekommen Daten nur auf rechtliche Anordnung.</li>
+  <li><strong>Übertragung &amp; Sicherheit.</strong> Die Verbindung ist TLS-verschlüsselt (also nicht im Klartext abhörbar). OpenAI ist nach <strong>SOC&nbsp;2 Type&nbsp;II</strong> und <strong>ISO&nbsp;27001</strong> zertifiziert und bietet auf Wunsch GDPR-Auftragsverarbeitungs-Verträge (DPA) sowie HIPAA-BAAs für Enterprise.</li>
+  <li><strong>Serverstandort.</strong> Standardmäßig USA. Für Enterprise gibt es regionale EU-Verarbeitung (Data Residency); im normalen API-Modus läuft die Verarbeitung über US-Infrastruktur. Wer hier strikt sein muss (z.&nbsp;B. Arztpraxen, Anwaltskanzleien, Behörden), sollte den lokalen Modus nutzen.</li>
+</ul>
+
+<div class="callout">
+<strong>Faustregel:</strong> Für normale Büro-Arbeit (E-Mails, Notizen, Chat) ist die OpenAI-Variante datenschutzrechtlich vergleichbar mit Microsoft-365-Dienste in der Cloud. <strong>Für besonders sensible Inhalte</strong> (medizinische Befunde, Anwaltsschriftsätze, Mandantengespräche, Personalakten) <strong>nimm den lokalen Modus</strong> &mdash; da verlässt nichts deinen Rechner.</div>
+
+<h3>Wenn du den lokalen Modus (Faster-Whisper) nutzt</h3>
+<ul>
+  <li>Nichts verlässt deinen Rechner. Keine Cloud, keine API-Aufrufe.</li>
+  <li>Das Sprach-Modell und der Verlauf liegen lokal unter <code>%APPDATA%\TypeStream</code> bzw. <code>%LOCALAPPDATA%\TypeStream\models</code>.</li>
+</ul>
+
+<h3>TypeStream selbst</h3>
+<ul>
+  <li>Der <strong>Verlauf</strong> wird nur lokal gespeichert. Keine Cloud-Synchronisation.</li>
+  <li><strong>Keine Telemetrie</strong> &mdash; TypeStream sendet keine Nutzungsstatistiken, kein Crash-Reporting, keine Analytics nach Hause.</li>
+  <li>Einzige Außenverbindungen: (1) der eigentliche Transkriptions-Call an OpenAI (nur im Cloud-Modus), (2) ein gelegentlicher Update-Check bei GitHub auf neue Programm-Versionen.</li>
+</ul>
+
+</body>
+</html>

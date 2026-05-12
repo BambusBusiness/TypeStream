@@ -94,7 +94,9 @@ Jede Zeile ist eine Aufnahme. Links steht der erkannte Text, darunter Datum/Uhrz
 
 ## 4. Das Tray-Symbol
 
-Unten rechts neben der Uhr findest du das TypeStream-Symbol. Es wechselt die Farbe:
+Unten rechts neben der Uhr findest du das TypeStream-Symbol. **Falls du es nicht direkt siehst:** klick auf den kleinen Pfeil nach oben (**^**) links neben den anderen Symbolen — Windows blendet selten genutzte Tray-Symbole dorthin aus. Per Drag-and-Drop kannst du das TypeStream-Icon von dort dauerhaft in die sichtbare Leiste ziehen.
+
+Das Symbol wechselt die Farbe:
 
 - **normal** → bereit.
 - **rot** → Aufnahme läuft gerade.

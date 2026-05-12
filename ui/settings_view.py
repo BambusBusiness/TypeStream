@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import QPoint, Qt, pyqtSignal
+from PyQt6.QtGui import QCursor
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -19,6 +20,8 @@ from PyQt6.QtWidgets import (
     QSlider,
     QSpinBox,
     QStackedWidget,
+    QToolButton,
+    QToolTip,
     QVBoxLayout,
     QWidget,
 )
@@ -112,6 +115,43 @@ def _muted(text: str) -> QLabel:
     label.setWordWrap(True)
     label.setProperty("role", "muted")
     return label
+
+
+class _HelpIcon(QToolButton):
+    """Small `?` button that shows its tooltip on hover (standard Qt timing)
+    and also on click — clicking forces the tooltip to appear immediately,
+    in case the hover timing is too slow for the user."""
+
+    def __init__(self, tip: str, parent=None):
+        super().__init__(parent)
+        self._tip = tip
+        self.setText("?")
+        self.setProperty("role", "help")
+        self.setToolTip(tip)
+        self.setFixedSize(20, 20)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.setAutoRaise(True)
+        self.clicked.connect(self._show_now)
+
+    def _show_now(self) -> None:
+        QToolTip.showText(QCursor.pos() + QPoint(8, 12), self._tip, self)
+
+
+def _help_icon(tip: str) -> _HelpIcon:
+    return _HelpIcon(tip)
+
+
+def _with_help(widget: QWidget, tip: str) -> QWidget:
+    """Wrap a widget plus a small `?`-tooltip icon in a single container so it
+    can be used as the field side of QFormLayout.addRow()."""
+    container = QWidget()
+    row = QHBoxLayout(container)
+    row.setContentsMargins(0, 0, 0, 0)
+    row.setSpacing(8)
+    row.addWidget(widget, 1)
+    row.addWidget(_help_icon(tip), 0, Qt.AlignmentFlag.AlignVCenter)
+    return container
 
 
 def _page(content_layout: QVBoxLayout) -> QWidget:
@@ -583,16 +623,48 @@ class SettingsView(QWidget):
         form = QFormLayout()
         form.setHorizontalSpacing(16)
         form.setVerticalSpacing(10)
-        form.addRow("Quelle", self._engine_combo)
-        form.addRow(self._api_key_label, self._api_key_edit)
-        form.addRow(self._model_label, self._model_combo)
-        form.addRow(self._local_size_label, self._local_size_combo)
-        form.addRow("Sprache", self._language_combo)
+        form.addRow("Quelle", _with_help(
+            self._engine_combo,
+            "Wer dein Audio in Text umwandelt.\n"
+            "OpenAI = schnelle Cloud (~0,2 Cent pro Minute Audio).\n"
+            "Faster-Whisper = läuft lokal auf deinem Rechner — kostenlos und privat, einmaliger Modell-Download nötig.",
+        ))
+        form.addRow(self._api_key_label, _with_help(
+            self._api_key_edit,
+            "Dein persönlicher Schlüssel von platform.openai.com (beginnt mit sk-...).\n"
+            "Wird nur lokal in deiner Config-Datei gespeichert.",
+        ))
+        form.addRow(self._model_label, _with_help(
+            self._model_combo,
+            "Welches OpenAI-Transkriptions-Modell genutzt wird.\n"
+            "mini-transcribe = günstig und sehr gut (Voreinstellung).\n"
+            "gpt-4o-transcribe = beste Qualität, doppelt so teuer.",
+        ))
+        form.addRow(self._local_size_label, _with_help(
+            self._local_size_combo,
+            "Größere Modelle erkennen genauer, brauchen aber mehr Festplattenplatz und RAM.\n"
+            "base ist ein guter Mittelweg für die meisten Rechner.",
+        ))
+        form.addRow("Sprache", _with_help(
+            self._language_combo,
+            "Hilft der Erkennung, wenn du immer in einer Sprache diktierst.\n"
+            "Auto-Erkennung klappt meist gut, kann aber bei sehr kurzen Aufnahmen daneben liegen.",
+        ))
 
         install_row = QHBoxLayout()
         install_row.setSpacing(12)
         install_row.addWidget(self._install_status, 1)
         install_row.addWidget(self._install_btn)
+
+        benchmark_row = QHBoxLayout()
+        benchmark_row.setSpacing(8)
+        benchmark_row.addWidget(self._benchmark_check)
+        benchmark_row.addWidget(_help_icon(
+            "Schickt jede Aufnahme parallel an beide Engines, damit du die "
+            "Geschwindigkeit vergleichen kannst (siehe Statistik-Tab).\n"
+            "Kostet etwas mehr und braucht beide Engines konfiguriert."
+        ))
+        benchmark_row.addStretch()
 
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
@@ -601,7 +673,7 @@ class SettingsView(QWidget):
         layout.addLayout(install_row)
         layout.addWidget(self._local_hint)
         layout.addSpacing(8)
-        layout.addWidget(self._benchmark_check)
+        layout.addLayout(benchmark_row)
         layout.addWidget(self._benchmark_hint)
         layout.addStretch()
         return _page(layout)
@@ -615,8 +687,16 @@ class SettingsView(QWidget):
         pair_form = QFormLayout()
         pair_form.setHorizontalSpacing(16)
         pair_form.setVerticalSpacing(8)
-        pair_form.addRow("Engine A", self._benchmark_a_combo)
-        pair_form.addRow("Engine B", self._benchmark_b_combo)
+        pair_form.addRow("Engine A", _with_help(
+            self._benchmark_a_combo,
+            "Erste Engine im Vergleich.\n"
+            "Sinnvoll nur, wenn der Benchmark-Modus (im Transkriptions-Tab) aktiv ist — sonst werden nur Daten für die aktive Engine gesammelt.",
+        ))
+        pair_form.addRow("Engine B", _with_help(
+            self._benchmark_b_combo,
+            "Zweite Engine im Vergleich.\n"
+            "Wähle eine andere als bei Engine A, damit ein sinnvoller Vergleich entsteht.",
+        ))
 
         a_card = _stats_card_widget(self._stats_a_title, self._stats_a_value, self._stats_a_meta)
         b_card = _stats_card_widget(self._stats_b_title, self._stats_b_value, self._stats_b_meta)
@@ -640,9 +720,21 @@ class SettingsView(QWidget):
         form = QFormLayout()
         form.setHorizontalSpacing(16)
         form.setVerticalSpacing(10)
-        form.addRow("Aufnahme", self._record_hotkey_btn)
-        form.addRow("Modus", self._mode_combo)
-        form.addRow("Letzten Text einfügen", self._paste_hotkey_btn)
+        form.addRow("Aufnahme", _with_help(
+            self._record_hotkey_btn,
+            "Welche Taste du drückst, um zu diktieren (z. B. F9).\n"
+            "Klick auf den Button und drück dann die gewünschte Taste oder Maustaste.",
+        ))
+        form.addRow("Modus", _with_help(
+            self._mode_combo,
+            "Push-to-Talk = Taste halten, beim Loslassen wird transkribiert.\n"
+            "Toggle = einmal drücken zum Starten, nochmal zum Stoppen.",
+        ))
+        form.addRow("Letzten Text einfügen", _with_help(
+            self._paste_hotkey_btn,
+            "Fügt den zuletzt erkannten Text noch einmal ein — nützlich, wenn das Auto-Einfügen mal nicht klappt.\n"
+            "Hier sind Tastenkombinationen erlaubt (z. B. Strg+Alt+V).",
+        ))
 
         hint = _muted(
             "Klicke auf einen Button und drücke dann die gewünschte Taste oder "
@@ -696,10 +788,27 @@ class SettingsView(QWidget):
         form = QFormLayout()
         form.setHorizontalSpacing(16)
         form.setVerticalSpacing(10)
-        form.addRow("Aktiver Stil", self._active_style_combo)
-        form.addRow("Stil-Modus", self._style_mode_combo)
-        form.addRow(self._refine_model_label, self._refine_model_combo)
-        form.addRow("Eigener Stil", self._custom_style_edit)
+        form.addRow("Aktiver Stil", _with_help(
+            self._active_style_combo,
+            "Wie der erkannte Text formatiert wird.\n"
+            "Original = unverändert. Professionell = formell. Locker = umgangssprachlich.\n"
+            "Eigener Stil erscheint, sobald du unten einen Beispieltext einträgst.",
+        ))
+        form.addRow("Stil-Modus", _with_help(
+            self._style_mode_combo,
+            "Whisper-Hint = günstig: der Stil-Beispieltext wird Whisper als Vorlage mitgegeben (subtiler Effekt).\n"
+            "LLM-Refine = klare Wirkung: der fertige Text wird zusätzlich von GPT umformuliert. Kostet einen weiteren API-Aufruf pro Aufnahme.",
+        ))
+        form.addRow(self._refine_model_label, _with_help(
+            self._refine_model_combo,
+            "Welches GPT-Modell den Text umformuliert.\n"
+            "mini = günstig und schnell, gpt-4o = genauer aber teurer.",
+        ))
+        form.addRow("Eigener Stil", _with_help(
+            self._custom_style_edit,
+            "Schreib hier einen Absatz so, wie deine Ausgabe klingen soll.\n"
+            "Sobald das Feld ausgefüllt ist, taucht 'Eigener Stil' im Dropdown oben auf.",
+        ))
 
         hint = _muted(
             "Whisper-Hint: günstig, der Stil-Beispieltext wird als Prompt an Whisper "
@@ -727,7 +836,11 @@ class SettingsView(QWidget):
         form = QFormLayout()
         form.setHorizontalSpacing(16)
         form.setVerticalSpacing(10)
-        form.addRow("Theme", self._theme_combo)
+        form.addRow("Theme", _with_help(
+            self._theme_combo,
+            "Hell oder Dunkel.\n"
+            "System folgt dem Windows-Hell/Dunkel-Modus automatisch.",
+        ))
 
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
