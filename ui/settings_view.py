@@ -101,6 +101,7 @@ NAV_ITEMS = (
     "Stil",
     "Erscheinungsbild",
     "Statistik",
+    "Updates",
 )
 
 
@@ -176,6 +177,8 @@ class SettingsView(QWidget):
     changed = pyqtSignal(object)
     back_requested = pyqtSignal()
     style_changed = pyqtSignal(str)
+    rollback_requested = pyqtSignal()
+    check_updates_requested = pyqtSignal()
 
     def __init__(self, config: Config, parent=None):
         super().__init__(parent)
@@ -358,6 +361,30 @@ class SettingsView(QWidget):
         self._stats_verdict.setProperty("role", "muted")
         self._stats_verdict.setWordWrap(True)
 
+        # ---- Updates widgets ----
+        # The controller fills these in via set_version_info() once it has
+        # decided whether self-install is even possible (dev checkout vs.
+        # PyInstaller bundle) and which previous version, if any, the user
+        # can roll back to.
+        self._current_version_label = QLabel("")
+        style_mono_section(self._current_version_label)
+        self._pending_update_label = QLabel("")
+        self._pending_update_label.setWordWrap(True)
+        self._pending_update_label.setProperty("role", "muted")
+        self._previous_version_label = QLabel("")
+        self._previous_version_label.setWordWrap(True)
+        self._previous_version_label.setProperty("role", "muted")
+        self._rollback_btn = QPushButton("Auf vorherige Version zurück")
+        self._rollback_btn.setProperty("role", "danger")
+        self._rollback_btn.setEnabled(False)
+        self._rollback_btn.clicked.connect(self.rollback_requested.emit)
+        # set_version_info() overwrites this — the default keeps the page
+        # in a sensible state if it's opened before the controller wires up.
+        self._can_self_install = False
+
+        self._check_updates_btn = QPushButton("Jetzt nach Updates suchen")
+        self._check_updates_btn.clicked.connect(self._on_check_updates_clicked)
+
         # ---- Build pages ----
         pages = [
             self._build_transcription_page(),
@@ -366,6 +393,7 @@ class SettingsView(QWidget):
             self._build_style_page(),
             self._build_appearance_page(),
             self._build_stats_page(),
+            self._build_updates_page(),
         ]
 
         # ---- Sidebar ----
@@ -831,6 +859,113 @@ class SettingsView(QWidget):
         is_refine = self._style_mode_combo.currentData() == "refine"
         self._refine_model_label.setVisible(is_refine)
         self._refine_model_combo.setVisible(is_refine)
+
+    def _build_updates_page(self) -> QWidget:
+        current_section = QLabel("AKTUELLE VERSION")
+        style_mono_section(current_section)
+
+        pending_section = QLabel("VERFÜGBARES UPDATE")
+        style_mono_section(pending_section)
+
+        rollback_section = QLabel("ROLLBACK")
+        style_mono_section(rollback_section)
+
+        intro = _muted(
+            "TypeStream prüft beim Start auf neue Versionen, lädt den Installer "
+            "im Hintergrund und blendet im Hauptfenster einen "
+            "„Jetzt installieren\"-Knopf ein. Falls ein Update etwas kaputt macht, "
+            "kannst du hier mit einem Klick auf die vorherige Version zurück."
+        )
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+        layout.addWidget(intro)
+        layout.addSpacing(8)
+        layout.addWidget(current_section)
+        layout.addWidget(self._current_version_label)
+        layout.addWidget(self._check_updates_btn, 0, Qt.AlignmentFlag.AlignLeft)
+        layout.addSpacing(12)
+        layout.addWidget(pending_section)
+        layout.addWidget(self._pending_update_label)
+        layout.addSpacing(12)
+        layout.addWidget(rollback_section)
+        layout.addWidget(self._previous_version_label)
+        layout.addWidget(self._rollback_btn, 0, Qt.AlignmentFlag.AlignLeft)
+        layout.addStretch()
+        return _page(layout)
+
+    def _on_check_updates_clicked(self) -> None:
+        self._check_updates_btn.setEnabled(False)
+        self._check_updates_btn.setText("Suche läuft …")
+        self.check_updates_requested.emit()
+
+    def reset_check_updates_button(self, *, found: bool) -> None:
+        # `found=True` means a new release is available — the banner/UI
+        # banner takes over from here, so the button just goes back to
+        # idle. `found=False` flashes a short "Aktuell" confirmation so
+        # the user gets a visible result when nothing happens.
+        self._check_updates_btn.setEnabled(True)
+        if found:
+            self._check_updates_btn.setText("Jetzt nach Updates suchen")
+        else:
+            self._check_updates_btn.setText("Du bist auf der aktuellsten Version ✓")
+
+    # ----- public API for the controller -----
+
+    def set_version_info(
+        self, *, current: str, previous: str, can_self_install: bool
+    ) -> None:
+        self._current_version_label.setText(f"v{current}")
+        self._can_self_install = can_self_install
+        self._refresh_rollback_state(previous)
+        if not self._pending_update_label.text():
+            self._pending_update_label.setText("Kein Update verfügbar.")
+
+    def _refresh_rollback_state(self, previous: str) -> None:
+        previous = (previous or "").strip()
+        if not previous:
+            self._previous_version_label.setText(
+                "Noch keine vorherige Version aufgezeichnet — der Rollback steht "
+                "nach dem ersten Update zur Verfügung."
+            )
+            self._rollback_btn.setEnabled(False)
+            self._rollback_btn.setText("Auf vorherige Version zurück")
+            return
+        if not getattr(self, "_can_self_install", False):
+            self._previous_version_label.setText(
+                f"Vorherige Version: v{previous}. Rollback nur aus der installierten "
+                "App heraus (nicht aus dem Dev-Checkout)."
+            )
+            self._rollback_btn.setEnabled(False)
+            self._rollback_btn.setText(f"Auf v{previous} zurück")
+            return
+        self._previous_version_label.setText(
+            f"Vor dem letzten Update lief TypeStream auf Version v{previous}. "
+            "Klick installiert diese Version still aus dem GitHub-Release und "
+            "startet die App neu."
+        )
+        self._rollback_btn.setEnabled(True)
+        self._rollback_btn.setText(f"Auf v{previous} zurück")
+
+    def set_pending_update(self, version: str, notes: str) -> None:
+        snippet = (notes or "").strip().splitlines()
+        first_line = snippet[0].strip() if snippet else ""
+        body = f"v{version} ist heruntergeladen und bereit zum Installieren."
+        if first_line:
+            body += f"\nRelease-Notes: {first_line}"
+        self._pending_update_label.setText(body)
+
+    def set_downgrade_in_progress(self, target: str) -> None:
+        self._rollback_btn.setEnabled(False)
+        self._rollback_btn.setText(f"Lade v{target} …")
+
+    def clear_downgrade_in_progress(self) -> None:
+        # The successful path tears the app down right after this; this
+        # call only matters on the failure path, where we re-enable the
+        # button so the user can retry.
+        self._rollback_btn.setEnabled(True)
+        self._rollback_btn.setText("Auf vorherige Version zurück")
 
     def _build_appearance_page(self) -> QWidget:
         form = QFormLayout()

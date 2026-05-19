@@ -13,8 +13,16 @@ from PyQt6.QtWidgets import QApplication
 
 log = logging.getLogger("typestream.app")
 
-from core import autostart, hallucinations, local_engine, refiner, sounds, updater
-from core.config import Config
+from core import (
+    auto_install,
+    autostart,
+    hallucinations,
+    local_engine,
+    refiner,
+    sounds,
+    updater,
+)
+from core.config import APP_DATA, Config
 from core.history import History
 from core.hotkeys import HotkeyManager
 from core.inserter import TextInserter
@@ -33,6 +41,7 @@ STATE_IDLE = "idle"
 STATE_RECORDING = "recording"
 
 UPDATE_CHECK_DELAY_MS = 8000
+UPDATE_CACHE_DIR = APP_DATA / "TypeStream" / "updates"
 
 
 class _UpdateCheckWorker(QObject):
@@ -41,6 +50,39 @@ class _UpdateCheckWorker(QObject):
     def run(self) -> None:
         info = updater.check_for_update()
         self.finished.emit(info)
+
+
+class _InstallerDownloadWorker(QObject):
+    finished = pyqtSignal(object, object)  # UpdateInfo, dest_path | None
+
+    def __init__(self, info: UpdateInfo, dest: Path):
+        super().__init__()
+        self._info = info
+        self._dest = dest
+
+    def run(self) -> None:
+        ok = updater.download_installer(self._info.installer_url, self._dest)
+        self.finished.emit(self._info, self._dest if ok else None)
+
+
+class _DowngradeFetchWorker(QObject):
+    finished = pyqtSignal(object, object)  # UpdateInfo | None, dest_path | None
+
+    def __init__(self, tag: str, dest_dir: Path):
+        super().__init__()
+        self._tag = tag
+        self._dest_dir = dest_dir
+
+    def run(self) -> None:
+        info = updater.fetch_release(self._tag)
+        if info is None or not info.installer_url:
+            self.finished.emit(None, None)
+            return
+        dest = self._dest_dir / (
+            info.installer_filename or f"TypeStream-Setup-{info.latest_version}.exe"
+        )
+        ok = updater.download_installer(info.installer_url, dest)
+        self.finished.emit(info, dest if ok else None)
 
 
 class AppController(QObject):
@@ -55,6 +97,7 @@ class AppController(QObject):
         super().__init__()
         self._app = app
         self._config = Config.load()
+        self._reconcile_installed_version()
         self._history = History(limit=self._config.history_limit)
         self._stats = Stats()
         self._recorder = AudioRecorder(input_device=self._config.input_device)
@@ -85,11 +128,23 @@ class AppController(QObject):
 
         self._tray = TrayIcon(self)
         self._main_window = MainWindow(self._history, self._stats, self._config)
+        self._main_window.settings_view().set_version_info(
+            current=__version__,
+            previous=self._config.previous_version,
+            can_self_install=auto_install.can_self_install(),
+        )
         self._overlay = RecordingOverlay()
 
         self._update_thread: QThread | None = None
         self._update_worker: _UpdateCheckWorker | None = None
         self._update_info: UpdateInfo | None = None
+        # Path of a downloaded installer that's ready to run. None while no
+        # update is queued, set once the background download finishes.
+        self._update_installer_path: Path | None = None
+        self._installer_dl_thread: QThread | None = None
+        self._installer_dl_worker: _InstallerDownloadWorker | None = None
+        self._downgrade_thread: QThread | None = None
+        self._downgrade_worker: _DowngradeFetchWorker | None = None
 
         self._apply_theme()
         try:
@@ -137,8 +192,14 @@ class AppController(QObject):
         self._main_window.copy_requested.connect(self._on_copy_request)
         self._main_window.insert_requested.connect(self._on_insert_request)
         self._main_window.style_changed.connect(self._on_style_changed)
+        self._main_window.install_update_clicked.connect(self._on_update_clicked)
+        self._main_window.dismiss_update_clicked.connect(self._on_dismiss_update_clicked)
         self._main_window.settings_view().changed.connect(self._apply_settings_live)
         self._main_window.settings_view().style_changed.connect(self._on_style_changed)
+        self._main_window.settings_view().rollback_requested.connect(self.request_downgrade)
+        self._main_window.settings_view().check_updates_requested.connect(
+            self._on_manual_update_check
+        )
 
         q = Qt.ConnectionType.QueuedConnection
         self._record_start.connect(self._start_recording, q)
@@ -328,12 +389,22 @@ class AppController(QObject):
         self._tray.hide()
         self._app.quit()
 
-    def _start_update_check(self) -> None:
+    def _start_update_check(self, *, manual: bool = False) -> None:
         if self._update_thread is not None:
+            if manual:
+                # The Settings button is now disabled — reset it so the
+                # user knows the request was acknowledged.
+                self._main_window.settings_view().reset_check_updates_button(
+                    found=self._update_info is not None
+                )
             return
-        log.info("Starting background update check (current=%s)", __version__)
+        log.info(
+            "Starting %s update check (current=%s)",
+            "manual" if manual else "background", __version__,
+        )
         self._update_thread = QThread(self)
         self._update_worker = _UpdateCheckWorker()
+        self._update_manual_pending = manual
         self._update_worker.moveToThread(self._update_thread)
         self._update_thread.started.connect(self._update_worker.run)
         self._update_worker.finished.connect(
@@ -345,31 +416,120 @@ class AppController(QObject):
         self._update_thread.finished.connect(self._update_check_cleanup)
         self._update_thread.start()
 
+    def _on_manual_update_check(self) -> None:
+        self._start_update_check(manual=True)
+
     def _update_check_cleanup(self) -> None:
         self._update_thread = None
         self._update_worker = None
 
     def _on_update_check_finished(self, info) -> None:
+        manual = getattr(self, "_update_manual_pending", False)
+        self._update_manual_pending = False
+        if not isinstance(info, UpdateInfo):
+            info = None
+
+        if manual:
+            self._main_window.settings_view().reset_check_updates_button(
+                found=info is not None
+            )
+            if info is None:
+                self._notify("Du bist auf der aktuellsten Version.", "info")
+
         if info is None:
             return
-        if not isinstance(info, UpdateInfo):
-            return
         self._update_info = info
-        self._tray.set_update_available(info.latest_version)
-        self._notify(
-            f"Update verfügbar: v{info.latest_version} — siehe Tray-Menü.",
-            "info",
-        )
         log.info(
-            "Update available: %s → %s (%s)",
-            info.current_version, info.latest_version, info.download_url,
+            "Update available: %s → %s (installer=%s)",
+            info.current_version, info.latest_version,
+            info.installer_url or "(no asset attached)",
         )
 
-    def _on_update_clicked(self) -> None:
-        if self._update_info is None:
+        if info.installer_url and auto_install.can_self_install():
+            self._start_installer_download(info)
+        else:
+            # No .exe attached to the release (or running from source) —
+            # fall back to the old behavior: tray menu opens the release
+            # page in the browser. UI banner is *not* shown because there's
+            # nothing to one-click-install.
+            self._tray.set_update_available(info.latest_version)
+            self._notify(
+                f"Update verfügbar: v{info.latest_version} — siehe Tray-Menü.",
+                "info",
+            )
+
+    def _start_installer_download(self, info: UpdateInfo) -> None:
+        UPDATE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        dest = UPDATE_CACHE_DIR / (
+            info.installer_filename
+            or f"TypeStream-Setup-{info.latest_version}.exe"
+        )
+        if dest.exists() and dest.stat().st_size > 0:
+            log.info("Installer already cached at %s", dest)
+            self._on_installer_ready(info, dest)
             return
-        url = self._update_info.download_url
-        log.info("Opening update URL: %s", url)
+
+        log.info("Starting installer download: %s", info.installer_url)
+        thread = QThread(self)
+        worker = _InstallerDownloadWorker(info, dest)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.finished.connect(
+            self._on_installer_download_finished, Qt.ConnectionType.QueuedConnection
+        )
+        worker.finished.connect(thread.quit)
+        thread.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        # Keep refs alive so QThread/QObject aren't GC'd mid-download.
+        self._installer_dl_thread = thread
+        self._installer_dl_worker = worker
+        thread.start()
+
+    def _on_installer_download_finished(self, info, dest) -> None:
+        self._installer_dl_thread = None
+        self._installer_dl_worker = None
+        if not isinstance(info, UpdateInfo):
+            return
+        if dest is None:
+            log.warning("Installer download failed — falling back to browser link")
+            self._tray.set_update_available(info.latest_version)
+            self._notify(
+                f"Update v{info.latest_version} verfügbar — Download fehlgeschlagen, "
+                "Release im Browser öffnen?",
+                "warn",
+            )
+            return
+        self._on_installer_ready(info, dest)
+
+    def _on_installer_ready(self, info: UpdateInfo, installer: Path) -> None:
+        self._update_info = info
+        self._update_installer_path = installer
+        self._tray.set_update_available(info.latest_version)
+        self._main_window.show_update_banner(info.latest_version)
+        self._main_window.settings_view().set_pending_update(
+            info.latest_version, info.release_notes
+        )
+        self._notify(
+            f"Update v{info.latest_version} ist bereit — im Hauptfenster auf "
+            "'Jetzt installieren' klicken.",
+            "info",
+        )
+        log.info("Installer ready at %s — UI install button enabled", installer)
+
+    def _on_update_clicked(self) -> None:
+        """Triggered by the tray menu and the main-window banner button.
+
+        If the installer is downloaded and we can self-install, run it and
+        quit. Otherwise (download still in progress, no asset attached, or
+        running from source) fall back to opening the release page."""
+        info = self._update_info
+        if info is None:
+            return
+        if self._update_installer_path is not None and auto_install.can_self_install():
+            self._run_installer(self._update_installer_path)
+            return
+        url = info.download_url
+        log.info("No local installer — opening release page: %s", url)
         try:
             webbrowser.open(url, new=2)
         except Exception:
@@ -379,6 +539,104 @@ class AppController(QObject):
                 "error",
                 important=True,
             )
+
+    def _on_dismiss_update_clicked(self) -> None:
+        """The banner X button — hide the banner for this session.
+
+        The next launch will rediscover the same pending update and the
+        banner will come back; that's intentional, so users don't quietly
+        miss a critical fix."""
+        self._main_window.hide_update_banner()
+        log.info("Update banner dismissed by user for this session")
+
+    def _run_installer(self, installer: Path) -> None:
+        log.info("Launching installer %s and quitting app", installer)
+        spawned = auto_install.launch_installer_and_quit(installer)
+        if not spawned:
+            self._notify(
+                "Update-Installer konnte nicht gestartet werden — bitte manuell "
+                f"ausführen: {installer}",
+                "error",
+                important=True,
+            )
+            return
+        self.quit()
+
+    def _reconcile_installed_version(self) -> None:
+        """Detect that an install happened since the last launch and record
+        what we just upgraded from, so Settings → Updates can offer a
+        one-click rollback to that version."""
+        seen = (self._config.installed_version_seen or "").strip()
+        current = __version__
+        if seen == current:
+            return
+        if seen and updater.is_newer(current, seen):
+            # We just moved forward from `seen` to `current` — that's an
+            # upgrade. Remember `seen` as the rollback target.
+            log.info("Detected upgrade %s → %s", seen, current)
+            self._config.previous_version = seen
+        elif seen and updater.is_newer(seen, current):
+            # We're now on an *older* version than we recorded — that's a
+            # downgrade we just performed. Remember the version we left as
+            # the new "previous", so the user can roll forward again.
+            log.info("Detected downgrade %s → %s", seen, current)
+            self._config.previous_version = seen
+        # First-ever run with this field: don't invent a previous version.
+        self._config.installed_version_seen = current
+        self._config.save()
+
+    def request_downgrade(self) -> None:
+        """Called by Settings → Updates when the user clicks the rollback
+        button. Downloads the previous-version installer in the background
+        and runs it the same way as a forward update."""
+        target = (self._config.previous_version or "").strip()
+        if not target:
+            self._notify("Keine vorherige Version bekannt.", "warn")
+            return
+        if not auto_install.can_self_install():
+            self._notify(
+                "Rollback geht nur aus der installierten App heraus — aus dem "
+                "Dev-Checkout heraus nicht möglich.",
+                "warn",
+            )
+            return
+        if self._downgrade_thread is not None:
+            self._notify("Rollback läuft bereits …", "info")
+            return
+        UPDATE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        self._main_window.settings_view().set_downgrade_in_progress(target)
+        thread = QThread(self)
+        worker = _DowngradeFetchWorker(target, UPDATE_CACHE_DIR)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.finished.connect(
+            self._on_downgrade_fetch_finished, Qt.ConnectionType.QueuedConnection
+        )
+        worker.finished.connect(thread.quit)
+        thread.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(self._on_downgrade_thread_finished)
+        self._downgrade_thread = thread
+        self._downgrade_worker = worker
+        thread.start()
+
+    def _on_downgrade_thread_finished(self) -> None:
+        self._downgrade_thread = None
+        self._downgrade_worker = None
+
+    def _on_downgrade_fetch_finished(self, info, dest) -> None:
+        self._main_window.settings_view().clear_downgrade_in_progress()
+        if dest is None or not isinstance(dest, Path):
+            target = self._config.previous_version
+            self._notify(
+                f"Rollback auf v{target} fehlgeschlagen — Release oder Installer "
+                "nicht auf GitHub gefunden.",
+                "error",
+                important=True,
+            )
+            return
+        log.info("Rollback installer ready at %s — launching", dest)
+        self._run_installer(dest)
 
     def _update_tray_state(self) -> None:
         if self._state == STATE_RECORDING:

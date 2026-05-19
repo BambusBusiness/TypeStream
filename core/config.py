@@ -44,6 +44,13 @@ class Config:
     benchmark_mode: bool = False
     benchmark_engine_a: str = "openai"
     benchmark_engine_b: str = "whisper"
+    # Tracks the __version__ we saw on the last launch. If the running app
+    # reports a different __version__, we know an install happened in between
+    # and remember what we just upgraded *from* in `previous_version`. The
+    # Settings → Updates page exposes a one-click downgrade back to that
+    # version when a release turns out to be broken.
+    installed_version_seen: str = ""
+    previous_version: str = ""
 
     @classmethod
     def load(cls) -> "Config":

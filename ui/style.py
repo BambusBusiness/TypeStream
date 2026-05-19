@@ -256,6 +256,44 @@ QFrame#statsCard {{
     border-radius: 14px;
 }}
 
+QFrame#updateBanner {{
+    background: {p.primary};
+    border: none;
+    border-bottom: 1px solid {p.primary_hover};
+}}
+
+QFrame#updateBanner QLabel[role="update-banner-text"] {{
+    color: {p.primary_fg};
+    font-weight: 600;
+    font-size: 13px;
+}}
+
+QFrame#updateBanner QPushButton[role="primary"] {{
+    padding: 8px 16px;
+    min-height: 18px;
+    background: {p.primary_fg};
+    color: {p.primary};
+}}
+
+QFrame#updateBanner QPushButton[role="primary"]:hover {{
+    background: {p.bg};
+    color: {p.primary};
+}}
+
+QFrame#updateBanner QPushButton[role="icon"] {{
+    background: transparent;
+    border: none;
+    color: {p.primary_fg};
+    font-size: 16px;
+    font-weight: 700;
+    min-height: 0;
+    padding: 0;
+}}
+
+QFrame#updateBanner QPushButton[role="icon"]:hover {{
+    color: {p.bg};
+}}
+
 QPushButton {{
     background: {p.surface};
     border: 1px solid {p.border};

@@ -126,6 +126,8 @@ class MainWindow(QMainWindow):
     insert_requested = pyqtSignal(str)
     copy_requested = pyqtSignal(str)
     style_changed = pyqtSignal(str)
+    install_update_clicked = pyqtSignal()
+    dismiss_update_clicked = pyqtSignal()
 
     def __init__(self, history: History, stats: Stats, config: Config):
         super().__init__()
@@ -142,6 +144,10 @@ class MainWindow(QMainWindow):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
+        self._update_banner = self._build_update_banner()
+        outer.addWidget(self._update_banner)
+        self._update_banner.hide()
+
         self._stack = QStackedWidget()
         outer.addWidget(self._stack)
 
@@ -155,6 +161,45 @@ class MainWindow(QMainWindow):
         self._stack.setCurrentIndex(PAGE_HISTORY)
         self.setCentralWidget(central)
         self.refresh()
+
+    def _build_update_banner(self) -> QFrame:
+        banner = QFrame()
+        banner.setObjectName("updateBanner")
+        banner.setProperty("role", "update-banner")
+        banner.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+
+        row = QHBoxLayout(banner)
+        row.setContentsMargins(20, 12, 20, 12)
+        row.setSpacing(14)
+
+        self._update_banner_label = QLabel("")
+        self._update_banner_label.setProperty("role", "update-banner-text")
+        row.addWidget(self._update_banner_label, 1)
+
+        self._install_btn = QPushButton("Jetzt installieren")
+        self._install_btn.setProperty("role", "primary")
+        self._install_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._install_btn.clicked.connect(self.install_update_clicked.emit)
+        row.addWidget(self._install_btn, 0)
+
+        dismiss = QPushButton("✕")
+        dismiss.setProperty("role", "icon")
+        dismiss.setToolTip("Banner für diese Sitzung ausblenden")
+        dismiss.setCursor(Qt.CursorShape.PointingHandCursor)
+        dismiss.setFixedSize(28, 28)
+        dismiss.clicked.connect(self.dismiss_update_clicked.emit)
+        row.addWidget(dismiss, 0)
+
+        return banner
+
+    def show_update_banner(self, version: str) -> None:
+        self._update_banner_label.setText(
+            f"Update auf v{version} bereit — wird mit einem Klick still installiert."
+        )
+        self._update_banner.show()
+
+    def hide_update_banner(self) -> None:
+        self._update_banner.hide()
 
     # ----- view navigation -----
 
@@ -247,12 +292,19 @@ class MainWindow(QMainWindow):
         self._empty_label.setStyleSheet("padding: 40px;")
         layout.addWidget(self._empty_label, 1)
 
-        # Action row
+        # Action row. Copy is the more common action (primary look), but
+        # both buttons sit next to each other and should occupy the same
+        # space — Qt's default sizing renders the primary button wider
+        # because its QSS adds extra padding, which made the pair look
+        # lopsided. Pinning them to the same minimum width keeps the
+        # primary styling but evens out the geometry.
         actions = QHBoxLayout()
         actions.setSpacing(12)
         self._copy_btn = QPushButton("Kopieren")
         self._copy_btn.setProperty("role", "primary")
         self._insert_btn = QPushButton("Einfügen")
+        for btn in (self._copy_btn, self._insert_btn):
+            btn.setMinimumWidth(140)
         self._delete_btn = QPushButton("Löschen")
         self._delete_btn.setProperty("role", "danger")
         actions.addWidget(self._copy_btn)

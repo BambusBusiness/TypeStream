@@ -122,7 +122,7 @@ class TrayIcon(QSystemTrayIcon):
 
     def set_update_available(self, version: str | None) -> None:
         if version:
-            self._update_action.setText(f"Update auf v{version} laden")
+            self._update_action.setText(f"Update v{version} installieren")
             self._update_action.setVisible(True)
             self._update_separator.setVisible(True)
         else:
