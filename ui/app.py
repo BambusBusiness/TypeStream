@@ -500,12 +500,21 @@ class AppController(QObject):
         if dest is None:
             log.warning("Installer download failed — falling back to browser link")
             self._tray.set_update_available(info.latest_version)
+            msg = (
+                f"Auto-Download von v{info.latest_version} fehlgeschlagen "
+                "(meist eine Antivirus-Sperre oder ein File-Lock im "
+                "%APPDATA%\\TypeStream\\updates-Ordner). Tray-Menü → "
+                f"„Update v{info.latest_version} installieren\" öffnet "
+                "das Release im Browser. Details siehe typestream.log."
+            )
+            self._main_window.settings_view().set_update_status(msg, "error")
             self._notify(
                 f"Update v{info.latest_version} verfügbar — Download fehlgeschlagen, "
-                "Release im Browser öffnen?",
+                "Details in Settings → Updates.",
                 "warn",
             )
             return
+        self._main_window.settings_view().clear_update_status()
         self._on_installer_ready(info, dest)
 
     def _on_installer_ready(self, info: UpdateInfo, installer: Path) -> None:
@@ -648,16 +657,26 @@ class AppController(QObject):
         self._downgrade_worker = None
 
     def _on_downgrade_fetch_finished(self, info, dest) -> None:
-        self._main_window.settings_view().clear_downgrade_in_progress()
+        sv = self._main_window.settings_view()
+        sv.clear_downgrade_in_progress()
         if dest is None or not isinstance(dest, Path):
             target = self._config.previous_version
-            self._notify(
-                f"Rollback auf v{target} fehlgeschlagen — Release oder Installer "
-                "nicht auf GitHub gefunden.",
-                "error",
-                important=True,
-            )
+            if info is None:
+                msg = (
+                    f"Rollback auf v{target} fehlgeschlagen: Release v{target} ist "
+                    "auf GitHub nicht (mehr) verfügbar oder hat keinen Installer "
+                    "angehängt."
+                )
+            else:
+                msg = (
+                    f"Rollback auf v{target} fehlgeschlagen: Download oder Datei-"
+                    "Umbenennung im %APPDATA%\\TypeStream\\updates-Ordner ist "
+                    "fehlgeschlagen. Details siehe typestream.log."
+                )
+            sv.set_update_status(msg, "error")
+            self._notify(msg, "error", important=True)
             return
+        sv.clear_update_status()
         log.info("Rollback installer ready at %s — launching", dest)
         self._run_installer(dest)
 

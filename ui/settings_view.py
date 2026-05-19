@@ -385,6 +385,16 @@ class SettingsView(QWidget):
         self._check_updates_btn = QPushButton("Jetzt nach Updates suchen")
         self._check_updates_btn.clicked.connect(self._on_check_updates_clicked)
 
+        # Persistent status pane at the bottom of the Updates page: any
+        # notify(error|warn) coming out of the auto-update or rollback
+        # flow lands here so the user can read it later instead of
+        # chasing the brief overlay pill. Empty = hidden, so the page
+        # stays clean on the happy path.
+        self._update_status_label = QLabel("")
+        self._update_status_label.setWordWrap(True)
+        self._update_status_label.setProperty("role", "update-status")
+        self._update_status_label.setVisible(False)
+
         # ---- Build pages ----
         pages = [
             self._build_transcription_page(),
@@ -897,7 +907,23 @@ class SettingsView(QWidget):
         layout.addWidget(self._previous_version_label)
         layout.addWidget(self._rollback_btn, 0, Qt.AlignmentFlag.AlignLeft)
         layout.addStretch()
+        layout.addWidget(self._update_status_label)
         return _page(layout)
+
+    def set_update_status(self, text: str, level: str = "error") -> None:
+        if not text:
+            self._update_status_label.clear()
+            self._update_status_label.setVisible(False)
+            return
+        self._update_status_label.setProperty("role", f"update-status-{level}")
+        self._update_status_label.setText(text)
+        self._update_status_label.setVisible(True)
+        # Re-polish so the role-based selector picks up the new value.
+        self._update_status_label.style().unpolish(self._update_status_label)
+        self._update_status_label.style().polish(self._update_status_label)
+
+    def clear_update_status(self) -> None:
+        self.set_update_status("")
 
     def _on_check_updates_clicked(self) -> None:
         self._check_updates_btn.setEnabled(False)

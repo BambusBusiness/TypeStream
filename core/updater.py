@@ -128,6 +128,24 @@ def fetch_release(tag: str, current: str = __version__) -> Optional[UpdateInfo]:
     return _release_from_payload(data, current)
 
 
+def _atomic_replace_with_retry(src: Path, dst: Path) -> None:
+    """`os.replace` retried up to ~3s. Windows Defender (and other AV)
+    will hold a brief read lock on a newly-written .exe while it scans
+    the file, which fails the rename with WinError 32. A handful of
+    retries lets the scan finish before we give up."""
+    import time as _time
+    last_err: OSError | None = None
+    for attempt in range(8):
+        try:
+            os.replace(src, dst)
+            return
+        except OSError as e:
+            last_err = e
+            _time.sleep(0.4)
+    if last_err is not None:
+        raise last_err
+
+
 def download_installer(
     url: str,
     dest: Path,
@@ -143,7 +161,13 @@ def download_installer(
         return False
     dest.parent.mkdir(parents=True, exist_ok=True)
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    tmp = Path(tempfile.mkstemp(prefix="typestream_dl_", dir=dest.parent)[1])
+    # `mkstemp` returns an *open* file descriptor — close it right away,
+    # otherwise Windows refuses to rename the file later (the leftover
+    # handle counts as "in use by another process", WinError 32). We
+    # only want the unique-path part of mkstemp here.
+    fd, tmp_path = tempfile.mkstemp(prefix="typestream_dl_", dir=dest.parent)
+    os.close(fd)
+    tmp = Path(tmp_path)
     try:
         with urllib.request.urlopen(req, timeout=DOWNLOAD_TIMEOUT_SECONDS) as resp:
             total = int(resp.headers.get("Content-Length") or 0)
@@ -164,7 +188,7 @@ def download_installer(
             log.warning("Empty download from %s", url)
             tmp.unlink(missing_ok=True)
             return False
-        os.replace(tmp, dest)
+        _atomic_replace_with_retry(tmp, dest)
         log.info("Installer downloaded: %s (%d bytes)", dest, written)
         return True
     except (urllib.error.URLError, OSError) as e:

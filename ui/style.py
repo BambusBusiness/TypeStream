@@ -294,6 +294,33 @@ QFrame#updateBanner QPushButton[role="icon"]:hover {{
     color: {p.bg};
 }}
 
+QLabel[role="update-status-error"] {{
+    background: {p.danger_bg};
+    color: {p.danger};
+    border: 1px solid {p.danger};
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 12px;
+}}
+
+QLabel[role="update-status-warn"] {{
+    background: {p.surface_elevated};
+    color: {p.fg_muted};
+    border: 1px solid {p.border};
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 12px;
+}}
+
+QLabel[role="update-status-info"] {{
+    background: {p.surface_elevated};
+    color: {p.fg};
+    border: 1px solid {p.border};
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 12px;
+}}
+
 QPushButton {{
     background: {p.surface};
     border: 1px solid {p.border};
