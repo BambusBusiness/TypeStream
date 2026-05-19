@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core import local_engine
+from core.i18n import i18n
 
 log = logging.getLogger("typestream.local_engine.ui")
 
@@ -39,18 +40,17 @@ class LocalEngineInstallDialog(QDialog):
         super().__init__(parent)
         self._kind = kind
         spec = local_engine.ENGINES[kind]
-        self.setWindowTitle(f"{spec.label} installieren")
+        self.setWindowTitle(i18n.t("install_dialog.title", engine=spec.label))
         self.setMinimumWidth(540)
         self.setModal(True)
 
         intro = QLabel(
             f"{spec.install_note}\n\n"
-            "Die Installation läuft in dein Benutzerverzeichnis — keine Daten "
-            "verlassen deinen Rechner. Das kann mehrere Minuten dauern."
+            + i18n.t("install_dialog.intro_suffix")
         )
         intro.setWordWrap(True)
 
-        self._status = QLabel("Bereit zur Installation.")
+        self._status = QLabel(i18n.t("install_dialog.status_ready"))
         self._status.setProperty("role", "muted")
         self._status.setWordWrap(True)
 
@@ -62,18 +62,18 @@ class LocalEngineInstallDialog(QDialog):
         self._log_view.setReadOnly(True)
         self._log_view.setMinimumHeight(180)
         self._log_view.setVisible(False)
-        self._log_view.setPlaceholderText("pip-Output erscheint hier während der Installation …")
+        self._log_view.setPlaceholderText(i18n.t("install_dialog.log_placeholder"))
 
         self._buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         self._install_btn = self._buttons.button(QDialogButtonBox.StandardButton.Ok)
         if self._install_btn is not None:
-            self._install_btn.setText("Installieren")
+            self._install_btn.setText(i18n.t("install_dialog.btn_install"))
             self._install_btn.setProperty("role", "primary")
         self._cancel_btn = self._buttons.button(QDialogButtonBox.StandardButton.Cancel)
         if self._cancel_btn is not None:
-            self._cancel_btn.setText("Schließen")
+            self._cancel_btn.setText(i18n.t("install_dialog.btn_close"))
         self._buttons.accepted.connect(self._start_install)
         self._buttons.rejected.connect(self.reject)
 
@@ -103,7 +103,7 @@ class LocalEngineInstallDialog(QDialog):
         self._progress.setVisible(True)
         self._log_view.setVisible(True)
         self._log_view.clear()
-        self._status.setText("Starte Installation …")
+        self._status.setText(i18n.t("install_dialog.status_running"))
         self.adjustSize()
 
         self._thread = QThread(self)
@@ -126,21 +126,21 @@ class LocalEngineInstallDialog(QDialog):
         self._success = ok
         self._progress.setVisible(False)
         if ok:
-            self._status.setText("Installation abgeschlossen.")
+            self._status.setText(i18n.t("install_dialog.status_done"))
             if self._cancel_btn is not None:
                 self._cancel_btn.setEnabled(True)
-                self._cancel_btn.setText("Schließen")
+                self._cancel_btn.setText(i18n.t("install_dialog.btn_close"))
             if self._install_btn is not None:
                 self._install_btn.setVisible(False)
         else:
-            self._status.setText("Installation fehlgeschlagen.")
+            self._status.setText(i18n.t("install_dialog.status_failed"))
             self._log_view.appendPlainText("")
-            self._log_view.appendPlainText(f"FEHLER: {error}")
+            self._log_view.appendPlainText(i18n.t("install_dialog.error_prefix", error=error))
             sb = self._log_view.verticalScrollBar()
             sb.setValue(sb.maximum())
             if self._install_btn is not None:
                 self._install_btn.setEnabled(True)
-                self._install_btn.setText("Erneut versuchen")
+                self._install_btn.setText(i18n.t("install_dialog.btn_retry"))
             if self._cancel_btn is not None:
                 self._cancel_btn.setEnabled(True)
 

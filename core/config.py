@@ -16,6 +16,7 @@ RecordMode = Literal["ptt", "toggle"]
 Theme = Literal["dark", "light", "system"]
 Engine = Literal["openai", "local"]
 LocalModelSize = Literal["tiny", "base", "small"]
+UiLanguage = Literal["system", "de", "en"]
 
 
 @dataclass
@@ -41,6 +42,7 @@ class Config:
     refine_model: str = "gpt-4o-mini"
     custom_style_prompt: str = ""
     theme: Theme = "system"
+    ui_language: UiLanguage = "system"
     benchmark_mode: bool = False
     benchmark_engine_a: str = "openai"
     benchmark_engine_b: str = "whisper"

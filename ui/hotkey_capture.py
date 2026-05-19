@@ -6,12 +6,14 @@ from PyQt6.QtWidgets import QPushButton
 
 import mouse
 
-DISPLAY_NAMES = {
-    "mouse:left": "Maus Links",
-    "mouse:right": "Maus Rechts",
-    "mouse:middle": "Maus Mitte",
-    "mouse:x": "Maustaste 4 (X1)",
-    "mouse:x2": "Maustaste 5 (X2)",
+from core.i18n import i18n
+
+DISPLAY_KEYS = {
+    "mouse:left": "hotkey.capture.mouse_left",
+    "mouse:right": "hotkey.capture.mouse_right",
+    "mouse:middle": "hotkey.capture.mouse_middle",
+    "mouse:x": "hotkey.capture.mouse_x1",
+    "mouse:x2": "hotkey.capture.mouse_x2",
 }
 
 CAPTURABLE_MOUSE_BUTTONS = ("middle", "x", "x2")
@@ -19,9 +21,10 @@ CAPTURABLE_MOUSE_BUTTONS = ("middle", "x", "x2")
 
 def display_label(hotkey: str) -> str:
     if not hotkey:
-        return "(kein Hotkey)"
-    if hotkey in DISPLAY_NAMES:
-        return DISPLAY_NAMES[hotkey]
+        return i18n.t("hotkey.capture.placeholder")
+    key = DISPLAY_KEYS.get(hotkey)
+    if key is not None:
+        return i18n.t(key)
     return "+".join(part.capitalize() for part in hotkey.split("+"))
 
 
@@ -74,6 +77,7 @@ class HotkeyCaptureButton(QPushButton):
         self._captured_internal.connect(
             self._on_capture_done, Qt.ConnectionType.QueuedConnection
         )
+        i18n.language_changed.connect(self._refresh_label)
         self._refresh_label()
 
     def value(self) -> str:
@@ -85,7 +89,7 @@ class HotkeyCaptureButton(QPushButton):
 
     def _refresh_label(self) -> None:
         if self._capturing:
-            self.setText("Drücke jetzt eine Taste oder Maustaste …  (Esc = Abbrechen)")
+            self.setText(i18n.t("hotkey.capture.prompt"))
         else:
             self.setText(display_label(self._current))
 

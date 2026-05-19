@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
 
 from core.config import Config
 from core.history import History, HistoryEntry
+from core.i18n import i18n
 from core.stats import Stats
 from core.styles import Style
 from ui.settings_view import SettingsView
@@ -135,8 +136,10 @@ class MainWindow(QMainWindow):
         self._stats = stats
         self._rows: list[HistoryRow] = []
         self._selected_index: int = -1
-        self.setWindowTitle("TypeStream")
+        self._pending_banner_version: str = ""
+        i18n.bind(self.setWindowTitle, "app.title")
         self.resize(820, 620)
+        i18n.language_changed.connect(self._on_language_changed)
 
         central = QWidget()
         central.setObjectName("appCentral")
@@ -176,15 +179,16 @@ class MainWindow(QMainWindow):
         self._update_banner_label.setProperty("role", "update-banner-text")
         row.addWidget(self._update_banner_label, 1)
 
-        self._install_btn = QPushButton("Jetzt installieren")
+        self._install_btn = QPushButton()
         self._install_btn.setProperty("role", "primary")
         self._install_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._install_btn.clicked.connect(self.install_update_clicked.emit)
+        i18n.bind(self._install_btn.setText, "banner.install_now")
         row.addWidget(self._install_btn, 0)
 
         dismiss = QPushButton("✕")
         dismiss.setProperty("role", "icon")
-        dismiss.setToolTip("Banner für diese Sitzung ausblenden")
+        i18n.bind(dismiss.setToolTip, "banner.dismiss_tooltip")
         dismiss.setCursor(Qt.CursorShape.PointingHandCursor)
         dismiss.setFixedSize(28, 28)
         dismiss.clicked.connect(self.dismiss_update_clicked.emit)
@@ -193,13 +197,24 @@ class MainWindow(QMainWindow):
         return banner
 
     def show_update_banner(self, version: str) -> None:
+        self._pending_banner_version = version
         self._update_banner_label.setText(
-            f"Update auf v{version} bereit — wird mit einem Klick still installiert."
+            i18n.t("banner.update_ready", version=version)
         )
         self._update_banner.show()
 
     def hide_update_banner(self) -> None:
+        self._pending_banner_version = ""
         self._update_banner.hide()
+
+    def _on_language_changed(self) -> None:
+        # Re-render dynamic (format-string-containing) labels that aren't
+        # plain i18n.bind() candidates.
+        if self._pending_banner_version:
+            self._update_banner_label.setText(
+                i18n.t("banner.update_ready", version=self._pending_banner_version)
+            )
+        self.refresh()
 
     # ----- view navigation -----
 
@@ -230,9 +245,10 @@ class MainWindow(QMainWindow):
 
         title_col = QVBoxLayout()
         title_col.setSpacing(6)
-        title = QLabel("TypeStream")
+        title = QLabel()
         title.setProperty("role", "title")
         style_serif_title(title, point_size=30)
+        i18n.bind(title.setText, "app.title")
         self._stats_label = QLabel("")
         self._stats_label.setProperty("role", "muted")
         title_col.addWidget(title)
@@ -240,17 +256,19 @@ class MainWindow(QMainWindow):
         header.addLayout(title_col)
         header.addStretch()
 
-        style_label = QLabel("STIL")
+        style_label = QLabel()
         style_label.setProperty("role", "section")
         style_mono_section(style_label)
+        i18n.bind(style_label.setText, "history.header.style")
         header.addWidget(style_label)
         self._style_combo = QComboBox()
         self._style_combo.setMinimumWidth(180)
         self._style_combo.currentIndexChanged.connect(self._on_style_combo_changed)
         header.addWidget(self._style_combo)
 
-        self._settings_btn = QPushButton("Einstellungen")
+        self._settings_btn = QPushButton()
         self._settings_btn.clicked.connect(self.show_settings)
+        i18n.bind(self._settings_btn.setText, "history.header.settings")
         header.addWidget(self._settings_btn)
         layout.addLayout(header)
 
@@ -283,10 +301,8 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._history_card, 1)
 
         # Empty state
-        self._empty_label = QLabel(
-            "Noch keine Transkriptionen.\n"
-            "Halte deinen Aufnahme-Hotkey, sprich kurz, lass los — der Text erscheint hier."
-        )
+        self._empty_label = QLabel()
+        i18n.bind(self._empty_label.setText, "history.empty")
         self._empty_label.setProperty("role", "muted")
         self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._empty_label.setStyleSheet("padding: 40px;")
@@ -300,19 +316,23 @@ class MainWindow(QMainWindow):
         # primary styling but evens out the geometry.
         actions = QHBoxLayout()
         actions.setSpacing(12)
-        self._copy_btn = QPushButton("Kopieren")
+        self._copy_btn = QPushButton()
         self._copy_btn.setProperty("role", "primary")
-        self._insert_btn = QPushButton("Einfügen")
+        i18n.bind(self._copy_btn.setText, "history.action.copy")
+        self._insert_btn = QPushButton()
+        i18n.bind(self._insert_btn.setText, "history.action.insert")
         for btn in (self._copy_btn, self._insert_btn):
             btn.setMinimumWidth(140)
-        self._delete_btn = QPushButton("Löschen")
+        self._delete_btn = QPushButton()
         self._delete_btn.setProperty("role", "danger")
+        i18n.bind(self._delete_btn.setText, "history.action.delete")
         actions.addWidget(self._copy_btn)
         actions.addWidget(self._insert_btn)
         actions.addStretch()
         actions.addWidget(self._delete_btn)
-        self._clear_btn = QPushButton("Alle löschen")
+        self._clear_btn = QPushButton()
         self._clear_btn.setProperty("role", "danger")
+        i18n.bind(self._clear_btn.setText, "history.action.clear_all")
         actions.addWidget(self._clear_btn)
         layout.addLayout(actions)
 
@@ -327,8 +347,13 @@ class MainWindow(QMainWindow):
         return self._history_card
 
     def refresh(self) -> None:
+        # German-style thousand separator (1.234.567) — kept regardless of UI
+        # language because the underlying numbers are conventionally written
+        # this way in TypeStream's primary user community.
+        today = f"{self._stats.today:,}".replace(",", ".")
+        total = f"{self._stats.total:,}".replace(",", ".")
         self._stats_label.setText(
-            f"{self._stats.today:,} Wörter heute  ·  {self._stats.total:,} Wörter gesamt".replace(",", ".")
+            i18n.t("history.stats_line", today=today, total=total)
         )
 
         while self._history_layout.count():

@@ -6,6 +6,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QAction, QActionGroup, QColor, QIcon, QPainter, QPixmap
 from PyQt6.QtWidgets import QMenu, QSystemTrayIcon
 
+from core.i18n import i18n
 from core.styles import Style, all_styles
 
 
@@ -84,22 +85,29 @@ class TrayIcon(QSystemTrayIcon):
         self._busy_icon = _solid_circle_icon(QColor("#ffb703"))
 
         self.setIcon(self._idle_icon)
-        self.setToolTip("TypeStream — bereit")
+        i18n.bind(self.setToolTip, "app.tray.tooltip_idle")
 
         self._menu = QMenu()
-        act_history = QAction("Verlauf öffnen", self)
-        act_settings = QAction("Einstellungen", self)
-        act_copy = QAction("Letzte Aufnahme kopieren", self)
-        act_quit = QAction("Beenden", self)
+        act_history = QAction(self)
+        act_settings = QAction(self)
+        act_copy = QAction(self)
+        act_quit = QAction(self)
+        i18n.bind(act_history.setText, "tray.menu.open_history")
+        i18n.bind(act_settings.setText, "tray.menu.settings")
+        i18n.bind(act_copy.setText, "tray.menu.copy_last")
+        i18n.bind(act_quit.setText, "tray.menu.quit")
 
-        self._style_menu = QMenu("Stil", self._menu)
+        self._style_menu = QMenu(self._menu)
+        i18n.bind(self._style_menu.setTitle, "tray.menu.style")
         self._style_group = QActionGroup(self)
         self._style_group.setExclusive(True)
         self._style_actions: dict[str, QAction] = {}
 
-        self._update_action = QAction("Update verfügbar — laden", self)
+        self._update_action = QAction(self)
+        self._update_version: str = ""
         self._update_action.setVisible(False)
         self._update_action.triggered.connect(self.update_clicked.emit)
+        i18n.language_changed.connect(self._refresh_dynamic_labels)
         self._update_separator = self._menu.addSeparator()
         self._update_separator.setVisible(False)
         self._menu.addAction(self._update_action)
@@ -122,12 +130,22 @@ class TrayIcon(QSystemTrayIcon):
 
     def set_update_available(self, version: str | None) -> None:
         if version:
-            self._update_action.setText(f"Update v{version} installieren")
+            self._update_version = version
+            self._update_action.setText(
+                i18n.t("tray.menu.update_install", version=version)
+            )
             self._update_action.setVisible(True)
             self._update_separator.setVisible(True)
         else:
+            self._update_version = ""
             self._update_action.setVisible(False)
             self._update_separator.setVisible(False)
+
+    def _refresh_dynamic_labels(self) -> None:
+        if self._update_version:
+            self._update_action.setText(
+                i18n.t("tray.menu.update_install", version=self._update_version)
+            )
 
     def _on_activated(self, reason):
         if reason in (
@@ -157,15 +175,15 @@ class TrayIcon(QSystemTrayIcon):
 
     def set_state_idle(self) -> None:
         self.setIcon(self._idle_icon)
-        self.setToolTip("TypeStream — bereit")
+        self.setToolTip(i18n.t("app.tray.tooltip_idle"))
 
     def set_state_recording(self) -> None:
         self.setIcon(self._recording_icon)
-        self.setToolTip("TypeStream — Aufnahme läuft")
+        self.setToolTip(i18n.t("app.tray.tooltip_recording"))
 
     def set_state_busy(self) -> None:
         self.setIcon(self._busy_icon)
-        self.setToolTip("TypeStream — Transkription läuft")
+        self.setToolTip(i18n.t("app.tray.tooltip_busy"))
 
     def notify(self, message: str, level: str = "info") -> None:
         icon = {

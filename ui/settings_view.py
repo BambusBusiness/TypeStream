@@ -29,79 +29,89 @@ from PyQt6.QtWidgets import (
 from core import local_engine
 from core.config import Config
 from core.history import HistoryEntry
+from core.i18n import SUPPORTED_LANGS, i18n
 from core.recorder import list_input_devices
 from core.styles import Style
 from ui.hotkey_capture import HotkeyCaptureButton
 from ui.local_engine_dialog import LocalEngineInstallDialog
 from ui.style import style_mono_section, style_serif_title
 
+# Each combo's options are stored as (config-value, translation-key)
+# tuples. `_populate_combo` looks up the key via i18n at the moment it
+# fills the combo, so a `language_changed` event can re-translate by
+# re-populating with the same lists.
+
 MODELS = [
-    ("gpt-4o-mini-transcribe", "gpt-4o-mini-transcribe  ·  ~$0.003/min"),
-    ("whisper-1", "whisper-1  ·  ~$0.006/min"),
-    ("gpt-4o-transcribe", "gpt-4o-transcribe  ·  ~$0.006/min  ·  beste Qualität"),
+    ("gpt-4o-mini-transcribe", "settings.transcription.model_mini"),
+    ("whisper-1", "settings.transcription.model_whisper"),
+    ("gpt-4o-transcribe", "settings.transcription.model_4o"),
 ]
 
 ENGINES = [
-    ("openai", "OpenAI API (Cloud)"),
-    ("local", "Faster-Whisper (Lokal)"),
+    ("openai", "settings.transcription.engine_cloud"),
+    ("local", "settings.transcription.engine_local"),
 ]
 
 LOCAL_MODEL_SIZES = [
-    ("tiny", "tiny  ·  ~75 MB  ·  schnellste"),
-    ("base", "base  ·  ~150 MB  ·  empfohlen"),
-    ("small", "small  ·  ~470 MB  ·  beste Qualität"),
+    ("tiny", "settings.transcription.local_tiny"),
+    ("base", "settings.transcription.local_base"),
+    ("small", "settings.transcription.local_small"),
 ]
 
 MODES = [
-    ("ptt", "Push-to-Talk (Taste halten)"),
-    ("toggle", "Toggle (Drücken: Start, nochmal: Stop)"),
+    ("ptt", "settings.hotkeys.mode_ptt"),
+    ("toggle", "settings.hotkeys.mode_toggle"),
 ]
 
 STYLE_MODES = [
-    ("hint", "Whisper-Hint  ·  schnell, kostenlos"),
-    ("refine", "LLM-Refine  ·  extra GPT-Aufruf, teurer"),
+    ("hint", "settings.style.mode_hint"),
+    ("refine", "settings.style.mode_refine"),
 ]
 
 REFINE_MODELS = [
-    ("gpt-4o-mini", "gpt-4o-mini  ·  günstig, schnell"),
-    ("gpt-4o", "gpt-4o  ·  beste Qualität"),
+    ("gpt-4o-mini", "settings.style.refine_mini"),
+    ("gpt-4o", "settings.style.refine_4o"),
 ]
 
 BENCHMARK_ENGINES = [
-    ("openai", "OpenAI (Cloud)"),
-    ("whisper", "Faster-Whisper (Lokal)"),
+    ("openai", "settings.stats.bench_openai"),
+    ("whisper", "settings.stats.bench_whisper"),
 ]
 
-BENCHMARK_ENGINE_LABELS = {k: v for k, v in BENCHMARK_ENGINES}
-
 THEMES = [
-    ("system", "System (automatisch)"),
-    ("dark", "Dunkel"),
-    ("light", "Hell"),
+    ("system", "settings.display.theme_system"),
+    ("dark", "settings.display.theme_dark"),
+    ("light", "settings.display.theme_light"),
 ]
 
 LANGUAGES = [
-    ("", "Auto-Erkennung"),
-    ("de", "Deutsch"),
-    ("en", "Englisch"),
-    ("fr", "Französisch"),
-    ("es", "Spanisch"),
-    ("it", "Italienisch"),
-    ("nl", "Niederländisch"),
-    ("pt", "Portugiesisch"),
-    ("pl", "Polnisch"),
-    ("ja", "Japanisch"),
-    ("zh", "Chinesisch"),
+    ("",   "lang.auto"),
+    ("de", "lang.de"),
+    ("en", "lang.en"),
+    ("fr", "lang.fr"),
+    ("es", "lang.es"),
+    ("it", "lang.it"),
+    ("nl", "lang.nl"),
+    ("pt", "lang.pt"),
+    ("pl", "lang.pl"),
+    ("ja", "lang.ja"),
+    ("zh", "lang.zh"),
 ]
 
-NAV_ITEMS = (
-    "Transkription",
-    "Hotkeys",
-    "Aufnahme",
-    "Stil",
-    "Erscheinungsbild",
-    "Statistik",
-    "Updates",
+UI_LANGUAGES = [
+    ("system", "settings.display.ui_language_system"),
+    ("de",     "lang.de"),
+    ("en",     "lang.en"),
+]
+
+NAV_KEYS = (
+    "settings.nav.transcription",
+    "settings.nav.hotkeys",
+    "settings.nav.recording",
+    "settings.nav.style",
+    "settings.nav.display",
+    "settings.nav.stats",
+    "settings.nav.updates",
 )
 
 
@@ -111,24 +121,58 @@ def _select(combo: QComboBox, value: object) -> None:
         combo.setCurrentIndex(idx)
 
 
-def _muted(text: str) -> QLabel:
-    label = QLabel(text)
+def _populate_combo(combo: QComboBox, options: list[tuple], current=None) -> None:
+    """Fill `combo` with (value, translation-key) pairs from `options`,
+    translating each key via i18n at call time. Preserves the current
+    selection unless `current` is given, in which case that value is
+    selected after re-populating."""
+    target = current if current is not None else combo.currentData()
+    combo.blockSignals(True)
+    combo.clear()
+    for value, key in options:
+        combo.addItem(i18n.t(key), value)
+    idx = combo.findData(target)
+    if idx >= 0:
+        combo.setCurrentIndex(idx)
+    combo.blockSignals(False)
+
+
+def _muted_bind(key: str) -> QLabel:
+    """QLabel pre-bound to a translation key so its text auto-updates on
+    language change."""
+    label = QLabel()
     label.setWordWrap(True)
     label.setProperty("role", "muted")
+    i18n.bind(label.setText, key)
+    return label
+
+
+def _row_label_bind(key: str) -> QLabel:
+    """A QLabel for QFormLayout.addRow(label, widget) bound to a key."""
+    label = QLabel()
+    i18n.bind(label.setText, key)
+    return label
+
+
+def _section_bind(key: str) -> QLabel:
+    label = QLabel()
+    style_mono_section(label)
+    i18n.bind(label.setText, key)
     return label
 
 
 class _HelpIcon(QToolButton):
     """Small `?` button that shows its tooltip on hover (standard Qt timing)
     and also on click — clicking forces the tooltip to appear immediately,
-    in case the hover timing is too slow for the user."""
+    in case the hover timing is too slow for the user. The tooltip text is
+    held as a translation key so language switching just works."""
 
-    def __init__(self, tip: str, parent=None):
+    def __init__(self, key: str, parent=None):
         super().__init__(parent)
-        self._tip = tip
+        self._key = key
         self.setText("?")
         self.setProperty("role", "help")
-        self.setToolTip(tip)
+        i18n.bind(self.setToolTip, key)
         self.setFixedSize(20, 20)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -136,14 +180,14 @@ class _HelpIcon(QToolButton):
         self.clicked.connect(self._show_now)
 
     def _show_now(self) -> None:
-        QToolTip.showText(QCursor.pos() + QPoint(8, 12), self._tip, self)
+        QToolTip.showText(QCursor.pos() + QPoint(8, 12), i18n.t(self._key), self)
 
 
-def _help_icon(tip: str) -> _HelpIcon:
-    return _HelpIcon(tip)
+def _help_icon(key: str) -> _HelpIcon:
+    return _HelpIcon(key)
 
 
-def _with_help(widget: QWidget, tip: str) -> QWidget:
+def _with_help(widget: QWidget, key: str) -> QWidget:
     """Wrap a widget plus a small `?`-tooltip icon in a single container so it
     can be used as the field side of QFormLayout.addRow()."""
     container = QWidget()
@@ -151,7 +195,7 @@ def _with_help(widget: QWidget, tip: str) -> QWidget:
     row.setContentsMargins(0, 0, 0, 0)
     row.setSpacing(8)
     row.addWidget(widget, 1)
-    row.addWidget(_help_icon(tip), 0, Qt.AlignmentFlag.AlignVCenter)
+    row.addWidget(_help_icon(key), 0, Qt.AlignmentFlag.AlignVCenter)
     return container
 
 
@@ -184,64 +228,55 @@ class SettingsView(QWidget):
         super().__init__(parent)
         self._style_key = config.style
         self._emit_blocked = True
+        # Combos whose option labels come from i18n. Re-populated on
+        # language change (see _on_language_changed).
+        self._translated_combos: list[tuple[QComboBox, list]] = []
 
         # ---- Transkription widgets ----
         self._engine_combo = QComboBox()
-        for v, l in ENGINES:
-            self._engine_combo.addItem(l, v)
-        _select(self._engine_combo, config.engine)
+        self._translated_combos.append((self._engine_combo, ENGINES))
+        _populate_combo(self._engine_combo, ENGINES, current=config.engine)
 
         self._api_key_edit = QLineEdit(config.api_key)
         self._api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self._api_key_edit.setPlaceholderText("sk-...")
 
         self._model_combo = QComboBox()
-        for v, l in MODELS:
-            self._model_combo.addItem(l, v)
-        _select(self._model_combo, config.model)
+        self._translated_combos.append((self._model_combo, MODELS))
+        _populate_combo(self._model_combo, MODELS, current=config.model)
 
         self._local_size_combo = QComboBox()
-        for v, l in LOCAL_MODEL_SIZES:
-            self._local_size_combo.addItem(l, v)
-        _select(self._local_size_combo, config.local_model_size)
+        self._translated_combos.append((self._local_size_combo, LOCAL_MODEL_SIZES))
+        _populate_combo(self._local_size_combo, LOCAL_MODEL_SIZES, current=config.local_model_size)
 
         self._language_combo = QComboBox()
-        for v, l in LANGUAGES:
-            self._language_combo.addItem(l, v)
-        _select(self._language_combo, config.language)
+        self._translated_combos.append((self._language_combo, LANGUAGES))
+        _populate_combo(self._language_combo, LANGUAGES, current=config.language)
 
-        self._api_key_label = QLabel("API-Key")
-        self._model_label = QLabel("Modell")
-        self._local_size_label = QLabel("Modell-Größe")
+        self._api_key_label = _row_label_bind("settings.transcription.api_key")
+        self._model_label = _row_label_bind("settings.transcription.model")
+        self._local_size_label = _row_label_bind("settings.transcription.local_size")
 
-        self._local_hint = _muted(
-            "Lokale Modelle werden in dein Benutzerverzeichnis geladen "
-            "(AppData/Local/TypeStream/models). Keine Daten verlassen deinen Rechner."
-        )
+        self._local_hint = _muted_bind("settings.transcription.local_hint")
 
         self._install_status = QLabel("")
         self._install_status.setWordWrap(True)
-        self._install_btn = QPushButton("Lokale Engine installieren")
+        self._install_btn = QPushButton()
+        i18n.bind(self._install_btn.setText, "settings.transcription.install_btn")
         self._install_btn.setProperty("role", "primary")
         self._install_btn.clicked.connect(self._on_install_clicked)
         self._install_row_widgets = (self._install_status, self._install_btn)
 
-        self._benchmark_check = QCheckBox(
-            "Benchmark-Modus (beide Engines vergleichen)"
-        )
+        self._benchmark_check = QCheckBox()
+        i18n.bind(self._benchmark_check.setText, "settings.transcription.benchmark")
         self._benchmark_check.setChecked(config.benchmark_mode)
-        self._benchmark_hint = _muted(
-            "Jede Aufnahme wird gleichzeitig durch OpenAI und Faster-Whisper geschickt. "
-            "Beide Laufzeiten landen unter „Statistik“. Die Einfügung kommt aus der "
-            "oben gewählten Quelle."
-        )
+        self._benchmark_hint = _muted_bind("settings.transcription.benchmark_hint")
 
         # ---- Hotkey widgets ----
         self._record_hotkey_btn = HotkeyCaptureButton(config.record_hotkey)
         self._mode_combo = QComboBox()
-        for v, l in MODES:
-            self._mode_combo.addItem(l, v)
-        _select(self._mode_combo, config.record_mode)
+        self._translated_combos.append((self._mode_combo, MODES))
+        _populate_combo(self._mode_combo, MODES, current=config.record_mode)
         self._paste_hotkey_btn = HotkeyCaptureButton(config.paste_hotkey)
 
         # ---- Aufnahme widgets ----
@@ -261,7 +296,8 @@ class SettingsView(QWidget):
         self._history_limit_spin.setRange(5, 500)
         self._history_limit_spin.setValue(config.history_limit)
 
-        self._play_sounds_check = QCheckBox("Akustisches Feedback (Start- / Stop-Ton)")
+        self._play_sounds_check = QCheckBox()
+        i18n.bind(self._play_sounds_check.setText, "settings.recording.play_sounds")
         self._play_sounds_check.setChecked(config.play_sounds)
 
         self._beep_volume_slider = QSlider(Qt.Orientation.Horizontal)
@@ -290,10 +326,12 @@ class SettingsView(QWidget):
             lambda v: self._warning_volume_label.setText(f"{v} %")
         )
 
-        self._show_overlay_check = QCheckBox("Visuelles Overlay während Aufnahme")
+        self._show_overlay_check = QCheckBox()
+        i18n.bind(self._show_overlay_check.setText, "settings.recording.show_overlay")
         self._show_overlay_check.setChecked(config.show_overlay)
 
-        self._autostart_check = QCheckBox("Bei Windows-Start automatisch starten")
+        self._autostart_check = QCheckBox()
+        i18n.bind(self._autostart_check.setText, "settings.recording.autostart")
         self._autostart_check.setChecked(config.autostart)
 
         # ---- Stil widgets ----
@@ -303,63 +341,60 @@ class SettingsView(QWidget):
         # the available styles (incl. optional custom prompt).
 
         self._style_mode_combo = QComboBox()
-        for v, l in STYLE_MODES:
-            self._style_mode_combo.addItem(l, v)
-        _select(self._style_mode_combo, config.style_mode)
+        self._translated_combos.append((self._style_mode_combo, STYLE_MODES))
+        _populate_combo(self._style_mode_combo, STYLE_MODES, current=config.style_mode)
 
         self._refine_model_combo = QComboBox()
-        for v, l in REFINE_MODELS:
-            self._refine_model_combo.addItem(l, v)
-        _select(self._refine_model_combo, config.refine_model)
-        self._refine_model_label = QLabel("Refine-Modell")
+        self._translated_combos.append((self._refine_model_combo, REFINE_MODELS))
+        _populate_combo(self._refine_model_combo, REFINE_MODELS, current=config.refine_model)
+        self._refine_model_label = _row_label_bind("settings.style.refine_model")
 
         self._custom_style_edit = QPlainTextEdit(config.custom_style_prompt)
-        self._custom_style_edit.setPlaceholderText(
-            "Optionaler eigener Stil-Prompt — z. B. ein Beispieltext im gewünschten "
-            "Stil. Leer lassen, um nur die vordefinierten Stile zu nutzen."
+        i18n.bind(
+            self._custom_style_edit.setPlaceholderText,
+            "settings.style.custom_placeholder",
         )
         self._custom_style_edit.setFixedHeight(120)
 
-        # ---- Erscheinungsbild widgets ----
+        # ---- Anzeige widgets (formerly Erscheinungsbild) ----
         self._theme_combo = QComboBox()
-        for v, l in THEMES:
-            self._theme_combo.addItem(l, v)
-        _select(self._theme_combo, config.theme)
+        self._translated_combos.append((self._theme_combo, THEMES))
+        _populate_combo(self._theme_combo, THEMES, current=config.theme)
+
+        self._ui_language_combo = QComboBox()
+        self._translated_combos.append((self._ui_language_combo, UI_LANGUAGES))
+        _populate_combo(self._ui_language_combo, UI_LANGUAGES, current=config.ui_language)
 
         # ---- Statistik widgets ----
         self._benchmark_a_combo = QComboBox()
         self._benchmark_b_combo = QComboBox()
-        for v, l in BENCHMARK_ENGINES:
-            self._benchmark_a_combo.addItem(l, v)
-            self._benchmark_b_combo.addItem(l, v)
-        _select(self._benchmark_a_combo, config.benchmark_engine_a)
-        _select(self._benchmark_b_combo, config.benchmark_engine_b)
+        self._translated_combos.append((self._benchmark_a_combo, BENCHMARK_ENGINES))
+        self._translated_combos.append((self._benchmark_b_combo, BENCHMARK_ENGINES))
+        _populate_combo(self._benchmark_a_combo, BENCHMARK_ENGINES, current=config.benchmark_engine_a)
+        _populate_combo(self._benchmark_b_combo, BENCHMARK_ENGINES, current=config.benchmark_engine_b)
 
-        self._stats_a_title = QLabel(
-            BENCHMARK_ENGINE_LABELS.get(config.benchmark_engine_a, config.benchmark_engine_a).upper()
-        )
+        self._stats_a_title = QLabel("")
         self._stats_a_title.setProperty("role", "section")
         style_mono_section(self._stats_a_title)
         self._stats_a_value = QLabel("—")
         self._stats_a_value.setProperty("role", "stats-value")
-        self._stats_a_meta = QLabel("noch keine Daten")
+        self._stats_a_meta = QLabel("")
         self._stats_a_meta.setProperty("role", "muted")
 
-        self._stats_b_title = QLabel(
-            BENCHMARK_ENGINE_LABELS.get(config.benchmark_engine_b, config.benchmark_engine_b).upper()
-        )
+        self._stats_b_title = QLabel("")
         self._stats_b_title.setProperty("role", "section")
         style_mono_section(self._stats_b_title)
         self._stats_b_value = QLabel("—")
         self._stats_b_value.setProperty("role", "stats-value")
-        self._stats_b_meta = QLabel("noch keine Daten")
+        self._stats_b_meta = QLabel("")
         self._stats_b_meta.setProperty("role", "muted")
 
-        self._stats_verdict = QLabel(
-            "Aktiviere den Benchmark-Modus, um beide Engines zu vergleichen."
-        )
+        self._stats_verdict = QLabel("")
         self._stats_verdict.setProperty("role", "muted")
         self._stats_verdict.setWordWrap(True)
+        # Cache the engine labels we're displaying so language switches can
+        # re-resolve them via i18n without losing which engines are picked.
+        self._stats_last_entries: list = []
 
         # ---- Updates widgets ----
         # The controller fills these in via set_version_info() once it has
@@ -382,8 +417,15 @@ class SettingsView(QWidget):
         # in a sensible state if it's opened before the controller wires up.
         self._can_self_install = False
 
-        self._check_updates_btn = QPushButton("Jetzt nach Updates suchen")
+        self._check_updates_btn = QPushButton()
+        i18n.bind(self._check_updates_btn.setText, "settings.updates.check_btn_idle")
         self._check_updates_btn.clicked.connect(self._on_check_updates_clicked)
+
+        # Tracked values for re-rendering on language change.
+        self._last_previous_version = ""
+        self._pending_update_version = ""
+        self._pending_update_notes = ""
+        self._stats_last_entries = []
 
         # Persistent status pane at the bottom of the Updates page: any
         # notify(error|warn) coming out of the auto-update or rollback
@@ -417,8 +459,8 @@ class SettingsView(QWidget):
         self._sidebar.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._sidebar.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._sidebar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        for label in NAV_ITEMS:
-            self._sidebar.addItem(QListWidgetItem(label))
+        for key in NAV_KEYS:
+            self._sidebar.addItem(QListWidgetItem(i18n.t(key)))
         self._sidebar.setCurrentRow(0)
 
         # ---- Stack ----
@@ -430,13 +472,15 @@ class SettingsView(QWidget):
         self._update_style_mode_visibility()
 
         # ---- Header ----
-        self._back_btn = QPushButton("← Verlauf")
+        self._back_btn = QPushButton()
+        i18n.bind(self._back_btn.setText, "settings.back")
         self._back_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._back_btn.clicked.connect(self.back_requested.emit)
 
-        title = QLabel("Einstellungen")
+        title = QLabel()
         title.setProperty("role", "title")
         style_serif_title(title, point_size=30)
+        i18n.bind(title.setText, "settings.title")
 
         header = QHBoxLayout()
         header.setSpacing(16)
@@ -463,7 +507,36 @@ class SettingsView(QWidget):
 
         self._update_engine_visibility()
         self._wire_change_signals()
+        i18n.language_changed.connect(self._on_language_changed)
         self._emit_blocked = False
+
+    def _on_language_changed(self) -> None:
+        """Re-translate combo option labels and any dynamic strings that
+        don't go through i18n.bind (sidebar items, dynamic stats labels,
+        etc.). i18n.bind already handled the static labels."""
+        was_blocked = self._emit_blocked
+        self._emit_blocked = True
+        try:
+            for combo, options in self._translated_combos:
+                _populate_combo(combo, options)
+            for i, key in enumerate(NAV_KEYS):
+                item = self._sidebar.item(i)
+                if item is not None:
+                    item.setText(i18n.t(key))
+            # Static styles list — labels come from styles.py and are not
+            # currently translated, so just re-trigger the dropdown.
+            if hasattr(self, "_active_style_combo"):
+                # styles labels are passed in via update_styles(), leave
+                # them as-is (the controller may re-call update_styles
+                # later).
+                pass
+            self.update_stats(self._stats_last_entries)
+            # Rollback button text uses dynamic version interpolation —
+            # ask the helper to re-apply with the same data.
+            self._refresh_rollback_state(self._last_previous_version)
+            self._refresh_pending_update()
+        finally:
+            self._emit_blocked = was_blocked
 
     # ----- public API -----
 
@@ -509,7 +582,7 @@ class SettingsView(QWidget):
             current = self._input_device_value
             self._input_device_combo.blockSignals(True)
             self._input_device_combo.clear()
-            self._input_device_combo.addItem("Systemstandard", "")
+            self._input_device_combo.addItem(i18n.t("settings.recording.system_default"), "")
             for name, label in list_input_devices():
                 self._input_device_combo.addItem(label, name)
             idx = self._input_device_combo.findData(current)
@@ -521,7 +594,8 @@ class SettingsView(QWidget):
                 # the system default on the next recording.
                 if current:
                     self._input_device_combo.addItem(
-                        f"{current}  ·  nicht verfügbar", current
+                        current + i18n.t("settings.recording.unavailable_suffix"),
+                        current,
                     )
                     self._input_device_combo.setCurrentIndex(
                         self._input_device_combo.count() - 1
@@ -538,10 +612,13 @@ class SettingsView(QWidget):
 
     def update_stats(self, entries: Iterable[HistoryEntry]) -> None:
         last10 = list(entries)[:10]
+        self._stats_last_entries = last10
         a_id = self._benchmark_a_combo.currentData() or "openai"
         b_id = self._benchmark_b_combo.currentData() or "whisper"
-        a_label = BENCHMARK_ENGINE_LABELS.get(a_id, a_id)
-        b_label = BENCHMARK_ENGINE_LABELS.get(b_id, b_id)
+        bench_key = {"openai": "settings.stats.bench_openai",
+                     "whisper": "settings.stats.bench_whisper"}
+        a_label = i18n.t(bench_key.get(a_id, "")) if a_id in bench_key else a_id
+        b_label = i18n.t(bench_key.get(b_id, "")) if b_id in bench_key else b_id
 
         a_times: list[float] = []
         b_times: list[float] = []
@@ -557,19 +634,19 @@ class SettingsView(QWidget):
 
         if a_times:
             avg = sum(a_times) / len(a_times)
-            self._stats_a_value.setText(f"Ø {avg:.2f} s")
-            self._stats_a_meta.setText(f"n = {len(a_times)}")
+            self._stats_a_value.setText(i18n.t("settings.stats.avg", seconds=avg))
+            self._stats_a_meta.setText(i18n.t("settings.stats.count", count=len(a_times)))
         else:
             self._stats_a_value.setText("—")
-            self._stats_a_meta.setText("noch keine Daten")
+            self._stats_a_meta.setText(i18n.t("settings.stats.no_data"))
 
         if b_times:
             avg = sum(b_times) / len(b_times)
-            self._stats_b_value.setText(f"Ø {avg:.2f} s")
-            self._stats_b_meta.setText(f"n = {len(b_times)}")
+            self._stats_b_value.setText(i18n.t("settings.stats.avg", seconds=avg))
+            self._stats_b_meta.setText(i18n.t("settings.stats.count", count=len(b_times)))
         else:
             self._stats_b_value.setText("—")
-            self._stats_b_meta.setText("noch keine Daten")
+            self._stats_b_meta.setText(i18n.t("settings.stats.no_data"))
 
         if a_times and b_times and a_id != b_id:
             aavg = sum(a_times) / len(a_times)
@@ -577,23 +654,21 @@ class SettingsView(QWidget):
             if aavg < bavg:
                 ratio = bavg / aavg if aavg > 0 else 0
                 self._stats_verdict.setText(
-                    f"{a_label} ist im Mittel {ratio:.1f}× schneller als {b_label}."
+                    i18n.t("settings.stats.verdict_faster_a",
+                           a=a_label, b=b_label, ratio=ratio)
                 )
             elif bavg < aavg:
                 ratio = aavg / bavg if bavg > 0 else 0
                 self._stats_verdict.setText(
-                    f"{b_label} ist im Mittel {ratio:.1f}× schneller als {a_label}."
+                    i18n.t("settings.stats.verdict_faster_b",
+                           a=a_label, b=b_label, ratio=ratio)
                 )
             else:
-                self._stats_verdict.setText("Beide Engines sind gleich schnell.")
+                self._stats_verdict.setText(i18n.t("settings.stats.verdict_equal"))
         elif a_id == b_id:
-            self._stats_verdict.setText(
-                "Wähle zwei verschiedene Engines, um sie zu vergleichen."
-            )
+            self._stats_verdict.setText(i18n.t("settings.stats.verdict_same_pair"))
         else:
-            self._stats_verdict.setText(
-                "Aktiviere den Benchmark-Modus, um beide Engines zu vergleichen."
-            )
+            self._stats_verdict.setText(i18n.t("settings.stats.verdict_benchmark_off"))
 
     def set_config(self, config: Config) -> None:
         self._emit_blocked = True
@@ -623,6 +698,7 @@ class SettingsView(QWidget):
             if self._custom_style_edit.toPlainText() != config.custom_style_prompt:
                 self._custom_style_edit.setPlainText(config.custom_style_prompt)
             _select(self._theme_combo, config.theme)
+            _select(self._ui_language_combo, config.ui_language)
             self._benchmark_check.setChecked(config.benchmark_mode)
             _select(self._benchmark_a_combo, config.benchmark_engine_a)
             _select(self._benchmark_b_combo, config.benchmark_engine_b)
@@ -654,6 +730,7 @@ class SettingsView(QWidget):
             refine_model=self._refine_model_combo.currentData() or "gpt-4o-mini",
             custom_style_prompt=self._custom_style_edit.toPlainText().strip(),
             theme=self._theme_combo.currentData() or "system",
+            ui_language=self._ui_language_combo.currentData() or "system",
             benchmark_mode=self._benchmark_check.isChecked(),
             benchmark_engine_a=self._benchmark_a_combo.currentData() or "openai",
             benchmark_engine_b=self._benchmark_b_combo.currentData() or "whisper",
@@ -665,33 +742,26 @@ class SettingsView(QWidget):
         form = QFormLayout()
         form.setHorizontalSpacing(16)
         form.setVerticalSpacing(10)
-        form.addRow("Quelle", _with_help(
-            self._engine_combo,
-            "Wer dein Audio in Text umwandelt.\n"
-            "OpenAI = schnelle Cloud (~0,2 Cent pro Minute Audio).\n"
-            "Faster-Whisper = läuft lokal auf deinem Rechner — kostenlos und privat, einmaliger Modell-Download nötig.",
-        ))
-        form.addRow(self._api_key_label, _with_help(
-            self._api_key_edit,
-            "Dein persönlicher Schlüssel von platform.openai.com (beginnt mit sk-...).\n"
-            "Wird nur lokal in deiner Config-Datei gespeichert.",
-        ))
-        form.addRow(self._model_label, _with_help(
-            self._model_combo,
-            "Welches OpenAI-Transkriptions-Modell genutzt wird.\n"
-            "mini-transcribe = günstig und sehr gut (Voreinstellung).\n"
-            "gpt-4o-transcribe = beste Qualität, doppelt so teuer.",
-        ))
-        form.addRow(self._local_size_label, _with_help(
-            self._local_size_combo,
-            "Größere Modelle erkennen genauer, brauchen aber mehr Festplattenplatz und RAM.\n"
-            "base ist ein guter Mittelweg für die meisten Rechner.",
-        ))
-        form.addRow("Sprache", _with_help(
-            self._language_combo,
-            "Hilft der Erkennung, wenn du immer in einer Sprache diktierst.\n"
-            "Auto-Erkennung klappt meist gut, kann aber bei sehr kurzen Aufnahmen daneben liegen.",
-        ))
+        form.addRow(
+            _row_label_bind("settings.transcription.engine"),
+            _with_help(self._engine_combo, "settings.transcription.engine_help"),
+        )
+        form.addRow(
+            self._api_key_label,
+            _with_help(self._api_key_edit, "settings.transcription.api_key_help"),
+        )
+        form.addRow(
+            self._model_label,
+            _with_help(self._model_combo, "settings.transcription.model_help"),
+        )
+        form.addRow(
+            self._local_size_label,
+            _with_help(self._local_size_combo, "settings.transcription.local_size_help"),
+        )
+        form.addRow(
+            _row_label_bind("settings.transcription.language"),
+            _with_help(self._language_combo, "settings.transcription.language_help"),
+        )
 
         install_row = QHBoxLayout()
         install_row.setSpacing(12)
@@ -701,11 +771,7 @@ class SettingsView(QWidget):
         benchmark_row = QHBoxLayout()
         benchmark_row.setSpacing(8)
         benchmark_row.addWidget(self._benchmark_check)
-        benchmark_row.addWidget(_help_icon(
-            "Schickt jede Aufnahme parallel an beide Engines, damit du die "
-            "Geschwindigkeit vergleichen kannst (siehe Statistik-Tab).\n"
-            "Kostet etwas mehr und braucht beide Engines konfiguriert."
-        ))
+        benchmark_row.addWidget(_help_icon("settings.transcription.benchmark_help"))
         benchmark_row.addStretch()
 
         layout = QVBoxLayout()
@@ -721,24 +787,19 @@ class SettingsView(QWidget):
         return _page(layout)
 
     def _build_stats_page(self) -> QWidget:
-        intro = _muted(
-            "Durchschnittliche Transkriptions-Latenz der letzten 10 Aufnahmen "
-            "für das gewählte Engine-Paar."
-        )
+        intro = _muted_bind("settings.stats.intro")
 
         pair_form = QFormLayout()
         pair_form.setHorizontalSpacing(16)
         pair_form.setVerticalSpacing(8)
-        pair_form.addRow("Engine A", _with_help(
-            self._benchmark_a_combo,
-            "Erste Engine im Vergleich.\n"
-            "Sinnvoll nur, wenn der Benchmark-Modus (im Transkriptions-Tab) aktiv ist — sonst werden nur Daten für die aktive Engine gesammelt.",
-        ))
-        pair_form.addRow("Engine B", _with_help(
-            self._benchmark_b_combo,
-            "Zweite Engine im Vergleich.\n"
-            "Wähle eine andere als bei Engine A, damit ein sinnvoller Vergleich entsteht.",
-        ))
+        pair_form.addRow(
+            _row_label_bind("settings.stats.engine_a"),
+            _with_help(self._benchmark_a_combo, "settings.stats.engine_a_help"),
+        )
+        pair_form.addRow(
+            _row_label_bind("settings.stats.engine_b"),
+            _with_help(self._benchmark_b_combo, "settings.stats.engine_b_help"),
+        )
 
         a_card = _stats_card_widget(self._stats_a_title, self._stats_a_value, self._stats_a_meta)
         b_card = _stats_card_widget(self._stats_b_title, self._stats_b_value, self._stats_b_meta)
@@ -762,26 +823,20 @@ class SettingsView(QWidget):
         form = QFormLayout()
         form.setHorizontalSpacing(16)
         form.setVerticalSpacing(10)
-        form.addRow("Aufnahme", _with_help(
-            self._record_hotkey_btn,
-            "Welche Taste du drückst, um zu diktieren (z. B. F9).\n"
-            "Klick auf den Button und drück dann die gewünschte Taste oder Maustaste.",
-        ))
-        form.addRow("Modus", _with_help(
-            self._mode_combo,
-            "Push-to-Talk = Taste halten, beim Loslassen wird transkribiert.\n"
-            "Toggle = einmal drücken zum Starten, nochmal zum Stoppen.",
-        ))
-        form.addRow("Letzten Text einfügen", _with_help(
-            self._paste_hotkey_btn,
-            "Fügt den zuletzt erkannten Text noch einmal ein — nützlich, wenn das Auto-Einfügen mal nicht klappt.\n"
-            "Hier sind Tastenkombinationen erlaubt (z. B. Strg+Alt+V).",
-        ))
-
-        hint = _muted(
-            "Klicke auf einen Button und drücke dann die gewünschte Taste oder "
-            "Maustaste. Push-to-Talk benötigt eine einzelne Taste."
+        form.addRow(
+            _row_label_bind("settings.hotkeys.record"),
+            _with_help(self._record_hotkey_btn, "settings.hotkeys.record_help"),
         )
+        form.addRow(
+            _row_label_bind("settings.hotkeys.mode"),
+            _with_help(self._mode_combo, "settings.hotkeys.mode_help"),
+        )
+        form.addRow(
+            _row_label_bind("settings.hotkeys.paste"),
+            _with_help(self._paste_hotkey_btn, "settings.hotkeys.paste_help"),
+        )
+
+        hint = _muted_bind("settings.hotkeys.hint")
 
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
@@ -795,9 +850,9 @@ class SettingsView(QWidget):
         form = QFormLayout()
         form.setHorizontalSpacing(16)
         form.setVerticalSpacing(10)
-        form.addRow("Mikrofon", self._input_device_combo)
-        form.addRow("Min. Aufnahme-Dauer", self._min_duration_spin)
-        form.addRow("Verlauf-Limit", self._history_limit_spin)
+        form.addRow(_row_label_bind("settings.recording.microphone"), self._input_device_combo)
+        form.addRow(_row_label_bind("settings.recording.min_duration"), self._min_duration_spin)
+        form.addRow(_row_label_bind("settings.recording.history_limit"), self._history_limit_spin)
         form.addRow("", self._play_sounds_check)
 
         volume_row = QHBoxLayout()
@@ -806,7 +861,7 @@ class SettingsView(QWidget):
         volume_row.addWidget(self._beep_volume_label)
         volume_container = QWidget()
         volume_container.setLayout(volume_row)
-        form.addRow("Aufnahme-Ton", volume_container)
+        form.addRow(_row_label_bind("settings.recording.beep_volume"), volume_container)
 
         warning_row = QHBoxLayout()
         warning_row.setSpacing(12)
@@ -814,7 +869,7 @@ class SettingsView(QWidget):
         warning_row.addWidget(self._warning_volume_label)
         warning_container = QWidget()
         warning_container.setLayout(warning_row)
-        form.addRow("Warnton", warning_container)
+        form.addRow(_row_label_bind("settings.recording.warning_volume"), warning_container)
 
         form.addRow("", self._show_overlay_check)
         form.addRow("", self._autostart_check)
@@ -830,36 +885,24 @@ class SettingsView(QWidget):
         form = QFormLayout()
         form.setHorizontalSpacing(16)
         form.setVerticalSpacing(10)
-        form.addRow("Aktiver Stil", _with_help(
-            self._active_style_combo,
-            "Wie der erkannte Text formatiert wird.\n"
-            "Original = unverändert. Professionell = formell. Locker = umgangssprachlich.\n"
-            "Eigener Stil erscheint, sobald du unten einen Beispieltext einträgst.",
-        ))
-        form.addRow("Stil-Modus", _with_help(
-            self._style_mode_combo,
-            "Whisper-Hint = günstig: der Stil-Beispieltext wird Whisper als Vorlage mitgegeben (subtiler Effekt).\n"
-            "LLM-Refine = klare Wirkung: der fertige Text wird zusätzlich von GPT umformuliert. Kostet einen weiteren API-Aufruf pro Aufnahme.",
-        ))
-        form.addRow(self._refine_model_label, _with_help(
-            self._refine_model_combo,
-            "Welches GPT-Modell den Text umformuliert.\n"
-            "mini = günstig und schnell, gpt-4o = genauer aber teurer.",
-        ))
-        form.addRow("Eigener Stil", _with_help(
-            self._custom_style_edit,
-            "Schreib hier einen Absatz so, wie deine Ausgabe klingen soll.\n"
-            "Sobald das Feld ausgefüllt ist, taucht 'Eigener Stil' im Dropdown oben auf.",
-        ))
-
-        hint = _muted(
-            "Whisper-Hint: günstig, der Stil-Beispieltext wird als Prompt an Whisper "
-            "geschickt — der Effekt ist subtil.\n"
-            "LLM-Refine: das fertige Transkript wird zusätzlich an GPT geschickt und "
-            "konsequent umformuliert — kostet einen weiteren API-Aufruf pro Aufnahme.\n\n"
-            "Den aktiven Stil kannst du auch hier, oben im Hauptfenster oder im Tray-Menü "
-            "wechseln. Ein leerer Custom-Prompt blendet den Eintrag „Eigener Stil“ aus."
+        form.addRow(
+            _row_label_bind("settings.style.active"),
+            _with_help(self._active_style_combo, "settings.style.active_help"),
         )
+        form.addRow(
+            _row_label_bind("settings.style.mode"),
+            _with_help(self._style_mode_combo, "settings.style.mode_help"),
+        )
+        form.addRow(
+            self._refine_model_label,
+            _with_help(self._refine_model_combo, "settings.style.refine_model_help"),
+        )
+        form.addRow(
+            _row_label_bind("settings.style.custom"),
+            _with_help(self._custom_style_edit, "settings.style.custom_help"),
+        )
+
+        hint = _muted_bind("settings.style.hint_body")
 
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
@@ -875,21 +918,10 @@ class SettingsView(QWidget):
         self._refine_model_combo.setVisible(is_refine)
 
     def _build_updates_page(self) -> QWidget:
-        current_section = QLabel("AKTUELLE VERSION")
-        style_mono_section(current_section)
-
-        pending_section = QLabel("VERFÜGBARES UPDATE")
-        style_mono_section(pending_section)
-
-        rollback_section = QLabel("ROLLBACK")
-        style_mono_section(rollback_section)
-
-        intro = _muted(
-            "TypeStream prüft beim Start auf neue Versionen, lädt den Installer "
-            "im Hintergrund und blendet im Hauptfenster einen "
-            "„Jetzt installieren\"-Knopf ein. Falls ein Update etwas kaputt macht, "
-            "kannst du hier mit einem Klick auf die vorherige Version zurück."
-        )
+        current_section = _section_bind("settings.updates.current_section")
+        pending_section = _section_bind("settings.updates.pending_section")
+        rollback_section = _section_bind("settings.updates.rollback_section")
+        intro = _muted_bind("settings.updates.intro")
 
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
@@ -927,7 +959,7 @@ class SettingsView(QWidget):
 
     def _on_check_updates_clicked(self) -> None:
         self._check_updates_btn.setEnabled(False)
-        self._check_updates_btn.setText("Suche läuft …")
+        self._check_updates_btn.setText(i18n.t("settings.updates.check_btn_running"))
         self.check_updates_requested.emit()
 
     def reset_check_updates_button(self, *, found: bool) -> None:
@@ -937,9 +969,9 @@ class SettingsView(QWidget):
         # the user gets a visible result when nothing happens.
         self._check_updates_btn.setEnabled(True)
         if found:
-            self._check_updates_btn.setText("Jetzt nach Updates suchen")
+            self._check_updates_btn.setText(i18n.t("settings.updates.check_btn_idle"))
         else:
-            self._check_updates_btn.setText("Du bist auf der aktuellsten Version ✓")
+            self._check_updates_btn.setText(i18n.t("settings.updates.check_btn_up_to_date"))
 
     # ----- public API for the controller -----
 
@@ -948,64 +980,82 @@ class SettingsView(QWidget):
     ) -> None:
         self._current_version_label.setText(f"v{current}")
         self._can_self_install = can_self_install
+        self._last_previous_version = previous
         self._refresh_rollback_state(previous)
-        if not self._pending_update_label.text():
-            self._pending_update_label.setText("Kein Update verfügbar.")
+        self._refresh_pending_update()
+
+    def _refresh_pending_update(self) -> None:
+        # Only emit the placeholder text if we haven't already set a real
+        # "downloaded and ready" message (the controller calls
+        # set_pending_update() once the download finishes).
+        if not getattr(self, "_pending_update_version", ""):
+            self._pending_update_label.setText(i18n.t("settings.updates.no_update"))
+            return
+        version = self._pending_update_version
+        notes = getattr(self, "_pending_update_notes", "")
+        snippet = (notes or "").strip().splitlines()
+        first_line = snippet[0].strip() if snippet else ""
+        body = i18n.t("settings.updates.pending_ready", version=version)
+        if first_line:
+            body += "\n" + i18n.t("settings.updates.pending_notes", notes=first_line)
+        self._pending_update_label.setText(body)
 
     def _refresh_rollback_state(self, previous: str) -> None:
         previous = (previous or "").strip()
         if not previous:
             self._previous_version_label.setText(
-                "Noch keine vorherige Version aufgezeichnet — der Rollback steht "
-                "nach dem ersten Update zur Verfügung."
+                i18n.t("settings.updates.rollback_no_history")
             )
             self._rollback_btn.setEnabled(False)
-            self._rollback_btn.setText("Auf vorherige Version zurück")
+            self._rollback_btn.setText(i18n.t("settings.updates.rollback_btn_default"))
             return
         if not getattr(self, "_can_self_install", False):
             self._previous_version_label.setText(
-                f"Vorherige Version: v{previous}. Rollback nur aus der installierten "
-                "App heraus (nicht aus dem Dev-Checkout)."
+                i18n.t("settings.updates.rollback_only_installed", version=previous)
             )
             self._rollback_btn.setEnabled(False)
-            self._rollback_btn.setText(f"Auf v{previous} zurück")
+            self._rollback_btn.setText(
+                i18n.t("settings.updates.rollback_btn_target", version=previous)
+            )
             return
         self._previous_version_label.setText(
-            f"Vor dem letzten Update lief TypeStream auf Version v{previous}. "
-            "Klick installiert diese Version still aus dem GitHub-Release und "
-            "startet die App neu."
+            i18n.t("settings.updates.rollback_description", version=previous)
         )
         self._rollback_btn.setEnabled(True)
-        self._rollback_btn.setText(f"Auf v{previous} zurück")
+        self._rollback_btn.setText(
+            i18n.t("settings.updates.rollback_btn_target", version=previous)
+        )
 
     def set_pending_update(self, version: str, notes: str) -> None:
-        snippet = (notes or "").strip().splitlines()
-        first_line = snippet[0].strip() if snippet else ""
-        body = f"v{version} ist heruntergeladen und bereit zum Installieren."
-        if first_line:
-            body += f"\nRelease-Notes: {first_line}"
-        self._pending_update_label.setText(body)
+        self._pending_update_version = version
+        self._pending_update_notes = notes
+        self._refresh_pending_update()
 
     def set_downgrade_in_progress(self, target: str) -> None:
         self._rollback_btn.setEnabled(False)
-        self._rollback_btn.setText(f"Lade v{target} …")
+        self._rollback_btn.setText(
+            i18n.t("settings.updates.rollback_btn_loading", version=target)
+        )
 
     def clear_downgrade_in_progress(self) -> None:
         # The successful path tears the app down right after this; this
         # call only matters on the failure path, where we re-enable the
         # button so the user can retry.
         self._rollback_btn.setEnabled(True)
-        self._rollback_btn.setText("Auf vorherige Version zurück")
+        self._rollback_btn.setText(i18n.t("settings.updates.rollback_btn_default"))
 
     def _build_appearance_page(self) -> QWidget:
         form = QFormLayout()
         form.setHorizontalSpacing(16)
         form.setVerticalSpacing(10)
-        form.addRow("Theme", _with_help(
-            self._theme_combo,
-            "Hell oder Dunkel.\n"
-            "System folgt dem Windows-Hell/Dunkel-Modus automatisch.",
-        ))
+        form.addRow(
+            _row_label_bind("settings.display.theme"),
+            _with_help(self._theme_combo, "settings.display.theme_help"),
+        )
+        form.addRow(
+            _row_label_bind("settings.display.ui_language"),
+            _with_help(self._ui_language_combo, "settings.display.ui_language_help"),
+        )
 
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
@@ -1034,10 +1084,8 @@ class SettingsView(QWidget):
         for w in self._install_row_widgets:
             w.setVisible(is_local and not installed)
         if is_local and not installed:
-            self._install_status.setText(
-                "Faster-Whisper ist auf diesem Rechner noch nicht installiert."
-            )
-            self._install_btn.setText("Faster-Whisper installieren")
+            self._install_status.setText(i18n.t("settings.transcription.install_missing"))
+            self._install_btn.setText(i18n.t("settings.transcription.install_btn_whisper"))
 
     def _on_install_clicked(self) -> None:
         dialog = LocalEngineInstallDialog(kind="whisper", parent=self)
@@ -1071,6 +1119,7 @@ class SettingsView(QWidget):
         self._refine_model_combo.currentIndexChanged.connect(self._emit_changed)
         self._custom_style_edit.textChanged.connect(self._emit_changed)
         self._theme_combo.currentIndexChanged.connect(self._emit_changed)
+        self._ui_language_combo.currentIndexChanged.connect(self._emit_changed)
         self._benchmark_check.toggled.connect(self._emit_changed)
         self._benchmark_a_combo.currentIndexChanged.connect(self._emit_changed)
         self._benchmark_b_combo.currentIndexChanged.connect(self._emit_changed)

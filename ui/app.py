@@ -25,6 +25,7 @@ from core import (
 from core.config import APP_DATA, Config
 from core.history import History
 from core.hotkeys import HotkeyManager
+from core.i18n import i18n, t
 from core.inserter import TextInserter
 from core.recorder import AudioRecorder
 from core.stats import Stats
@@ -102,6 +103,7 @@ class AppController(QObject):
         super().__init__()
         self._app = app
         self._config = Config.load()
+        i18n.apply_language(self._config.ui_language)
         self._reconcile_installed_version()
         self._history = History(limit=self._config.history_limit)
         self._stats = Stats()
@@ -239,14 +241,11 @@ class AppController(QObject):
                     self._config.record_hotkey,
                 )
                 if self._config.record_mode == "ptt":
-                    self._notify(
-                        "Tastenkombination erkannt — PTT wird als Toggle behandelt.",
-                        "warn",
-                    )
+                    self._notify(t("notify.ptt_as_toggle"), "warn")
             self._hotkeys.register_paste(self._config.paste_hotkey, self._paste_last.emit)
         except Exception as e:
             log.exception("Hotkey registration failed")
-            self._notify(f"Hotkey-Fehler: {e}", "error", important=True)
+            self._notify(t("notify.hotkey_error", error=str(e)), "error", important=True)
 
     def show_main_window(self) -> None:
         self._main_window.show()
@@ -314,6 +313,8 @@ class AppController(QObject):
             sounds.set_warning_volume(new_cfg.warning_volume)
         if new_cfg.autostart != prev.autostart:
             autostart.set_enabled(new_cfg.autostart)
+        if new_cfg.ui_language != prev.ui_language:
+            i18n.apply_language(new_cfg.ui_language)
 
     def _apply_theme(self) -> None:
         palette = get_palette(self._resolved_theme())
@@ -369,15 +370,15 @@ class AppController(QObject):
         self._main_window.set_active_style(key)
         self._main_window.settings_view().set_active_style(key)
         label = find_style(key, self._config.custom_style_prompt).label
-        self._notify(f"Stil: {label}", "info")
+        self._notify(t("notify.style_changed", label=label), "info")
 
     def copy_last(self) -> None:
         latest = self._history.latest()
         if latest is None:
-            self._notify("Kein Text im Verlauf.", "warn")
+            self._notify(t("notify.history_empty"), "warn")
             return
         self._inserter.copy_to_clipboard(latest.text)
-        self._notify("Letzter Text in Zwischenablage kopiert.", "info")
+        self._notify(t("notify.copied_last"), "info")
 
     def quit(self) -> None:
         self._hotkeys.unregister_all()
@@ -441,7 +442,7 @@ class AppController(QObject):
                 found=info is not None
             )
             if info is None:
-                self._notify("Du bist auf der aktuellsten Version.", "info")
+                self._notify(t("notify.up_to_date"), "info")
 
         if info is None:
             return
@@ -461,7 +462,7 @@ class AppController(QObject):
             # nothing to one-click-install.
             self._tray.set_update_available(info.latest_version)
             self._notify(
-                f"Update verfügbar: v{info.latest_version} — siehe Tray-Menü.",
+                t("notify.update_available_tray", version=info.latest_version),
                 "info",
             )
 
@@ -500,17 +501,12 @@ class AppController(QObject):
         if dest is None:
             log.warning("Installer download failed — falling back to browser link")
             self._tray.set_update_available(info.latest_version)
-            msg = (
-                f"Auto-Download von v{info.latest_version} fehlgeschlagen "
-                "(meist eine Antivirus-Sperre oder ein File-Lock im "
-                "%APPDATA%\\TypeStream\\updates-Ordner). Tray-Menü → "
-                f"„Update v{info.latest_version} installieren\" öffnet "
-                "das Release im Browser. Details siehe typestream.log."
+            self._main_window.settings_view().set_update_status(
+                t("notify.update_download_failed_long", version=info.latest_version),
+                "error",
             )
-            self._main_window.settings_view().set_update_status(msg, "error")
             self._notify(
-                f"Update v{info.latest_version} verfügbar — Download fehlgeschlagen, "
-                "Details in Settings → Updates.",
+                t("notify.update_download_failed_short", version=info.latest_version),
                 "warn",
             )
             return
@@ -526,8 +522,7 @@ class AppController(QObject):
             info.latest_version, info.release_notes
         )
         self._notify(
-            f"Update v{info.latest_version} ist bereit — im Hauptfenster auf "
-            "'Jetzt installieren' klicken.",
+            t("notify.update_ready_banner", version=info.latest_version),
             "info",
         )
         log.info("Installer ready at %s — UI install button enabled", installer)
@@ -551,7 +546,7 @@ class AppController(QObject):
         except Exception:
             log.exception("Failed to open update URL")
             self._notify(
-                f"Konnte Browser nicht öffnen. URL: {url}",
+                t("notify.update_browser_failed", url=url),
                 "error",
                 important=True,
             )
@@ -586,8 +581,7 @@ class AppController(QObject):
         spawned = auto_install.launch_installer_and_quit(installer)
         if not spawned:
             self._notify(
-                "Update-Installer konnte nicht gestartet werden — bitte manuell "
-                f"ausführen: {installer}",
+                t("notify.update_installer_failed", path=str(installer)),
                 "error",
                 important=True,
             )
@@ -623,17 +617,13 @@ class AppController(QObject):
         and runs it the same way as a forward update."""
         target = (self._config.previous_version or "").strip()
         if not target:
-            self._notify("Keine vorherige Version bekannt.", "warn")
+            self._notify(t("notify.rollback_no_previous"), "warn")
             return
         if not auto_install.can_self_install():
-            self._notify(
-                "Rollback geht nur aus der installierten App heraus — aus dem "
-                "Dev-Checkout heraus nicht möglich.",
-                "warn",
-            )
+            self._notify(t("notify.rollback_dev_checkout"), "warn")
             return
         if self._downgrade_thread is not None:
-            self._notify("Rollback läuft bereits …", "info")
+            self._notify(t("notify.rollback_running"), "info")
             return
         UPDATE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
         self._main_window.settings_view().set_downgrade_in_progress(target)
@@ -661,18 +651,12 @@ class AppController(QObject):
         sv.clear_downgrade_in_progress()
         if dest is None or not isinstance(dest, Path):
             target = self._config.previous_version
-            if info is None:
-                msg = (
-                    f"Rollback auf v{target} fehlgeschlagen: Release v{target} ist "
-                    "auf GitHub nicht (mehr) verfügbar oder hat keinen Installer "
-                    "angehängt."
-                )
-            else:
-                msg = (
-                    f"Rollback auf v{target} fehlgeschlagen: Download oder Datei-"
-                    "Umbenennung im %APPDATA%\\TypeStream\\updates-Ordner ist "
-                    "fehlgeschlagen. Details siehe typestream.log."
-                )
+            key = (
+                "notify.rollback_failed_no_release"
+                if info is None
+                else "notify.rollback_failed_local"
+            )
+            msg = t(key, version=target)
             sv.set_update_status(msg, "error")
             self._notify(msg, "error", important=True)
             return
@@ -706,23 +690,15 @@ class AppController(QObject):
         if self._state != STATE_IDLE:
             return
         if self._config.engine == "openai" and not self._config.api_key:
-            self._notify(
-                "Kein API-Key gesetzt — bitte Einstellungen öffnen.",
-                "error",
-                important=True,
-            )
+            self._notify(t("notify.api_key_missing"), "error", important=True)
             return
         if self._config.engine == "local" and not local_engine.is_installed("whisper"):
-            self._notify(
-                "Faster-Whisper ist nicht installiert — bitte Einstellungen öffnen.",
-                "error",
-                important=True,
-            )
+            self._notify(t("notify.local_not_installed"), "error", important=True)
             return
         try:
             self._recorder.start()
         except Exception as e:
-            self._notify(f"Aufnahme-Start fehlgeschlagen: {e}", "error", important=True)
+            self._notify(t("notify.record_start_failed", error=str(e)), "error", important=True)
             return
         self._state = STATE_RECORDING
         self._update_tray_state()
@@ -741,7 +717,7 @@ class AppController(QObject):
             if self._config.show_overlay:
                 self._overlay.hide_with_fade()
             self._update_tray_state()
-            self._notify(f"Aufnahme-Stop fehlgeschlagen: {e}", "error", important=True)
+            self._notify(t("notify.record_stop_failed", error=str(e)), "error", important=True)
             return
         if self._config.play_sounds:
             sounds.play_stop()
@@ -751,7 +727,7 @@ class AppController(QObject):
         if wav is None:
             self._update_tray_state()
             self._notify(
-                f"Aufnahme zu kurz (< {self._config.min_record_duration:.1f}s)",
+                t("notify.record_too_short", min=self._config.min_record_duration),
                 "warn",
             )
             return
@@ -910,7 +886,7 @@ class AppController(QObject):
                 self._pending_count -= 1
         self._update_tray_state()
         if not text:
-            self._notify("Keine Sprache erkannt", "warn")
+            self._notify(t("notify.no_speech"), "warn")
             return
         meta = timings if isinstance(timings, dict) else {}
         self._history.add(
@@ -927,29 +903,25 @@ class AppController(QObject):
 
     def _deliver_text(self, text: str) -> None:
         if not self._inserter.insert_at_cursor(text):
-            self._notify(
-                "Auto-Einfügen fehlgeschlagen — Text in Zwischenablage. Strg+V einfügen.",
-                "warn",
-                important=True,
-            )
+            self._notify(t("notify.paste_failed"), "warn", important=True)
 
     def _on_transcription_failed(self, error: str) -> None:
         with self._pending_lock:
             if self._pending_count > 0:
                 self._pending_count -= 1
         self._update_tray_state()
-        self._notify(f"Transkription fehlgeschlagen: {error}", "error", important=True)
+        self._notify(t("notify.transcription_failed", error=error), "error", important=True)
 
     def _paste_last_history(self) -> None:
         latest = self._history.latest()
         if latest is None:
-            self._notify("Kein Text im Verlauf.", "warn")
+            self._notify(t("notify.history_empty"), "warn")
             return
         QTimer.singleShot(80, lambda: self._deliver_text(latest.text))
 
     def _on_copy_request(self, text: str) -> None:
         self._inserter.copy_to_clipboard(text)
-        self._notify("In Zwischenablage kopiert.", "info")
+        self._notify(t("notify.copied"), "info")
 
     def _on_insert_request(self, text: str) -> None:
         self._main_window.hide()
