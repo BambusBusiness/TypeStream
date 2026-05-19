@@ -13,6 +13,18 @@ if sys.platform == "win32":
     except (AttributeError, OSError):
         pass
     try:
+        # Without an explicit AppUserModelID, Windows groups our windows under
+        # the Python interpreter's taskbar entry and shows that interpreter's
+        # icon — which is why our icon would otherwise look blurry/wrong on
+        # the taskbar. Setting our own AUMID gives Windows a stable identity
+        # to attach our HD icon to.
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+            "Otark.TypeStream"
+        )
+    except (AttributeError, OSError):
+        pass
+    try:
         import ctypes
         HIGH_PRIORITY_CLASS = 0x00000080
         ABOVE_NORMAL_PRIORITY_CLASS = 0x00008000
@@ -82,6 +94,7 @@ from PyQt6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 from core import sounds
 from ui.app import AppController
 from ui.style import APP_QSS
+from ui.tray import load_app_icon
 
 SINGLE_INSTANCE_KEY = "TypeStream-SingleInstance"
 
@@ -91,6 +104,7 @@ def main() -> int:
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     app.setApplicationName("TypeStream")
+    app.setWindowIcon(load_app_icon())
     app.setStyleSheet(APP_QSS)
 
     probe = QLocalSocket()

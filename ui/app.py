@@ -157,10 +157,18 @@ class AppController(QObject):
                     self._record_start.emit,
                     self._record_stop.emit,
                 )
+                log.info(
+                    "Record hotkey registered as PTT (key=%s)",
+                    self._config.record_hotkey,
+                )
             else:
                 self._hotkeys.register_record_toggle(
                     self._config.record_hotkey,
                     self._record_toggle.emit,
+                )
+                log.info(
+                    "Record hotkey registered as TOGGLE (key=%s)",
+                    self._config.record_hotkey,
                 )
                 if self._config.record_mode == "ptt":
                     self._notify(

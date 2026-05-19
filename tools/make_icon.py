@@ -44,13 +44,11 @@ def main() -> int:
         print("invalid svg", file=sys.stderr)
         return 1
 
-    images = [Image.open(io.BytesIO(render_png(renderer, s))) for s in SIZES]
-    images[0].save(
-        ICO,
-        format="ICO",
-        sizes=[(s, s) for s in SIZES],
-        append_images=images[1:],
-    )
+    # Render the largest size once; Pillow's ICO writer downscales it to every
+    # entry in `sizes`. Passing `append_images` produced single-size ICO files
+    # in practice — `sizes` from a high-res master is the path that works.
+    master = Image.open(io.BytesIO(render_png(renderer, max(SIZES))))
+    master.save(ICO, format="ICO", sizes=[(s, s) for s in SIZES])
     print(f"wrote {ICO} ({len(SIZES)} sizes)")
     return 0
 

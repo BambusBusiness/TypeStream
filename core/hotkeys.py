@@ -47,7 +47,13 @@ class HotkeyManager:
     def register_record_toggle(self, hotkey: str, callback: Callable[[], None]) -> None:
         if is_mouse_hotkey(hotkey):
             button = _mouse_button(hotkey)
-            h = mouse.on_button(callback, buttons=(button,), types=("down",))
+            # Accept "double" too: the `mouse` library auto-converts a second
+            # down event that arrives within the system double-click time
+            # (~500ms) into a DOUBLE event. Without this, a quick second
+            # press to stop recording would be silently swallowed.
+            h = mouse.on_button(
+                callback, buttons=(button,), types=("down", "double")
+            )
             self._mouse_handles.append(h)
             return
         h = keyboard.add_hotkey(hotkey, callback)

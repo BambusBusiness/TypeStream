@@ -42,18 +42,31 @@ def _load_svg_icon(svg_path: Path) -> QIcon | None:
     return icon
 
 
+def _assets_dir() -> Path:
+    return Path(__file__).resolve().parent.parent / "assets"
+
+
 def _load_idle_icon() -> QIcon:
-    icon_dir = Path(__file__).resolve().parent.parent / "assets"
-    for name in ("icon.png", "icon.ico"):
-        path = icon_dir / name
-        if path.exists():
-            return QIcon(str(path))
+    # Prefer the SVG: QSvgRenderer produces a crisp QIcon with multiple
+    # explicit pixmap sizes, which Windows picks the right one from for the
+    # taskbar/Alt-Tab/title-bar (all of which use different pixel sizes per
+    # DPI scale). A single-size icon.ico looks blurry whenever Windows wants
+    # anything bigger than 16x16.
+    icon_dir = _assets_dir()
     svg_path = icon_dir / "icon.svg"
     if svg_path.exists():
         svg_icon = _load_svg_icon(svg_path)
         if svg_icon is not None:
             return svg_icon
+    for name in ("icon.png", "icon.ico"):
+        path = icon_dir / name
+        if path.exists():
+            return QIcon(str(path))
     return _solid_circle_icon(QColor("#3a86ff"))
+
+
+def load_app_icon() -> QIcon:
+    return _load_idle_icon()
 
 
 class TrayIcon(QSystemTrayIcon):
