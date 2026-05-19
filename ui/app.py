@@ -42,6 +42,11 @@ STATE_RECORDING = "recording"
 
 UPDATE_CHECK_DELAY_MS = 8000
 UPDATE_CACHE_DIR = APP_DATA / "TypeStream" / "updates"
+# After the user dismisses the update banner with the X button, hold it
+# back this long before showing it again. A normal app restart also
+# resurfaces the banner — this timer only matters for users who keep the
+# app running for more than 5 hours straight.
+BANNER_DISMISS_COOLDOWN_MS = 5 * 60 * 60 * 1000
 
 
 class _UpdateCheckWorker(QObject):
@@ -145,6 +150,8 @@ class AppController(QObject):
         self._installer_dl_worker: _InstallerDownloadWorker | None = None
         self._downgrade_thread: QThread | None = None
         self._downgrade_worker: _DowngradeFetchWorker | None = None
+        self._banner_resurface_timer: QTimer | None = None
+        self._update_manual_pending = False
 
         self._apply_theme()
         try:
@@ -541,13 +548,29 @@ class AppController(QObject):
             )
 
     def _on_dismiss_update_clicked(self) -> None:
-        """The banner X button — hide the banner for this session.
-
-        The next launch will rediscover the same pending update and the
-        banner will come back; that's intentional, so users don't quietly
-        miss a critical fix."""
+        """The banner X button — hide the banner and schedule it to come
+        back after 5 hours of uptime. A restart also resurfaces it,
+        because the cooldown timer is in-memory only and resets to None
+        on the next launch. We don't persist the cooldown so the user
+        always sees the pending update at least once per launch."""
         self._main_window.hide_update_banner()
-        log.info("Update banner dismissed by user for this session")
+        self._schedule_banner_resurface()
+        log.info("Update banner dismissed — will resurface in 5h or on restart")
+
+    def _schedule_banner_resurface(self) -> None:
+        if self._banner_resurface_timer is not None:
+            self._banner_resurface_timer.stop()
+        self._banner_resurface_timer = QTimer(self)
+        self._banner_resurface_timer.setSingleShot(True)
+        self._banner_resurface_timer.timeout.connect(self._resurface_banner_if_pending)
+        self._banner_resurface_timer.start(BANNER_DISMISS_COOLDOWN_MS)
+
+    def _resurface_banner_if_pending(self) -> None:
+        self._banner_resurface_timer = None
+        if self._update_installer_path is None or self._update_info is None:
+            return
+        log.info("Banner cooldown elapsed — showing update banner again")
+        self._main_window.show_update_banner(self._update_info.latest_version)
 
     def _run_installer(self, installer: Path) -> None:
         log.info("Launching installer %s and quitting app", installer)

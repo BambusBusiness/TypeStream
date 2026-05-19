@@ -516,9 +516,9 @@ QListWidget#sidebarNav {{
 QListWidget#sidebarNav::item {{
     background: transparent;
     border: 1px solid transparent;
-    border-radius: 10px;
-    padding: 12px 16px;
-    margin: 2px 0;
+    border-radius: 8px;
+    padding: 7px 12px;
+    margin: 1px 0;
     color: {p.fg_muted};
     font-weight: 500;
 }}

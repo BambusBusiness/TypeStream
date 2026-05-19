@@ -397,11 +397,15 @@ class SettingsView(QWidget):
         ]
 
         # ---- Sidebar ----
+        # Tuned so all NAV_ITEMS fit without a vertical scrollbar at the
+        # default window height (620). Adding more nav entries should
+        # either bump the window minimum height or shrink padding further.
         self._sidebar = QListWidget()
         self._sidebar.setObjectName("sidebarNav")
-        self._sidebar.setFixedWidth(200)
-        self._sidebar.setSpacing(2)
+        self._sidebar.setFixedWidth(174)
+        self._sidebar.setSpacing(1)
         self._sidebar.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._sidebar.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._sidebar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         for label in NAV_ITEMS:
             self._sidebar.addItem(QListWidgetItem(label))

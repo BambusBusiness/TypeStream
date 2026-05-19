@@ -3,7 +3,7 @@
 ; Expects PyInstaller output in dist\TypeStream\
 
 #define MyAppName        "TypeStream"
-#define MyAppVersion     "0.1.2"
+#define MyAppVersion     "0.1.3"
 #define MyAppPublisher   "BambusBusiness"
 #define MyAppURL         "https://github.com/BambusBusiness/TypeStream"
 #define MyAppExeName     "TypeStream.exe"
